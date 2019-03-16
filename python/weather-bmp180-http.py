@@ -1,20 +1,24 @@
 #!/usr/bin/ python3
 #
-#*************  weather.py     Usage: python3 weather-http.py ***********************
+#****** weather-bmp180-http.py     Usage: python3 weather-bmp180-http.py *******
+#
 #
 #   TODO:       * Add failsafe incase server not available
 #               * Update sheet automaticly with timer,
 #                 so run script on raspberrypi by cron or something. . .
+#               * Build QT app to call this script
 #               * Branch: MQTT
 #
 #   FIXME:      Nice to have:   * Should work with python2.7 also ???
 #                                 some issues with urllib on python2.7
 #               Mandatory:      * Meters on sheet should show LATEST values.
 #
+#   v0.6        yasperzee   2'19    Name of the script changed, support for
+#                                   DHT-11 sensor modified to another file.
+#
 #   v0.5        yasperzee   2'19    Some robustnest added to handle sensor values
 #                                   Add new values to next empty row.
 #                                   Added table and some visualization to sheet
-#
 #
 #   v0.4        yasperzee   2'19    Update sheets with values
 #                                   Add current date and time to sheet with values
@@ -40,10 +44,9 @@ from google.auth.transport.requests import Request
 from urllib.request import urlopen
 
 # Get page with Temperature & Barometer values
-request_url     = 'http://192.168.10.47/4/on'
+request_url     = 'http://192.168.10.47/4/on' # nodemcu address
 
 # If modifying these scopes, delete the file token.pickle.
-#SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 # Sheet WeatherHerwood
@@ -87,31 +90,38 @@ class SensorValues:
             encoding = response.headers.get_content_charset('utf-8')
             stringPage = htmlPage.decode(encoding)
             # Print Decoded page
-            #print(stringPage)
-            #print('')
+            print(stringPage)
+            print('')
         # Temperature
         tagIndex = stringPage.find(tagTemp) + len(tagTemp)
         valIndex = tagIndex + self.valLen
         valueStr = (stringPage[tagIndex:valIndex])
         idx=0
+        print (tagTemp, valueStr)
+        print('')
         for x in valueStr:
             idx = idx+1
             if valueStr[idx] == " ":
                 valueStr = valueStr[:idx]
                 break
         self.temperatureVal = float(valueStr)
-        #print (tagTemp, valueStr)
+        print (tagTemp, valueStr)
+        print('')
         # Barometer
         tagIndex = stringPage.find(tagPres) + len(tagPres)
         valIndex = tagIndex + self.valLen
         valueStr = (stringPage[tagIndex:valIndex])
+        idx=0
+        print (tagPres, valueStr)
+        print('')
         for x in valueStr:
             idx = idx+1
             if valueStr[idx] == " ":
                 valueStr = valueStr[:idx]
                 break
         self.pressureVal= float(valueStr)
-        #print (tagPres, valueStr)
+        print (tagPres, valueStr)
+        print('')
 
     def getTemp(self):
         return self.temperatureVal

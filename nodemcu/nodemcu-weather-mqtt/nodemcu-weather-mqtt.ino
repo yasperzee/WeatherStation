@@ -1,4 +1,4 @@
-  /*************************** nodemcu-weather-mqtt.ino *****************************
+  /************************ nodemcu-weather-mqtt.ino ***************************
   #
   # Description:    mqtt client reads temperature & pressure from bmp180 sensor.
   #
@@ -17,7 +17,7 @@
   #
   *****************************************************************************/
 
-/* ----------Version history ---------------------------------------------------
+/* ---------------- Version history --------------------------------------------
 # TODO: sleep
 
     Version 0.1     Yasperzee   2'19
@@ -33,17 +33,25 @@
 #include <PubSubClient.h>
 
 // defines
-#define ALTITUDE 129.0 // Altitude of Kalkunvuori, Tampere Finland. in meters
+// #define ALTITUDE 119.0 // Altitude of Tampere-Pirkkala airport, Finland. In meters
+#define ALTITUDE 129.0 // Altitude of Kalkunvuori, Tampere Finland. In meters
 #define MQTT_SERVER "192.168.10.52" // Local Rpi3 with mosquitto
-#define VARIABLE_LABEL "temperature-sensor" // Assing the variable label
-#define VARIABLE_LABEL_SUBSCRIBE "temperature" // Assing the variable label
-#define DEVICE_LABEL "BMP180_01" // Assig the device label
-#define TOKEN ""
-#define MQTT_CLIENT_NAME "node_01"    // MQTT client Name, please enter your own 8-12 alphanumeric character ASCII string;
+
+#define TOPIC_LEVEL_SINGLE "+" // WILDCARD
+#define TOPIC_LEVEL_MULTI  "#" // WILDCARD
+//#define TOPIC_LEVEL_LOCATION "Home" // 0. level
+//#define VARIABLE_LABEL "sensor01" // Assing the variable label
+#define TOPIC_LEVEL_SENSOR "sensor01" // 1. level
+//#define VARIABLE_LABEL_SUBSCRIBE "temperature" // Assing the variable label
+#define TOPIC_LEVEL_TEMP "temperature" // 2. level
+#define TOPIC_LEVEL_BARO "barometer" // 2. level
+
+#define DEVICE_LABEL "BMP180_01" // Assing the device label
+// #define TOKEN ""
+#define MQTT_CLIENT_ID "node_01"    // MQTT client Name, please enter your own 8-12 alphanumeric character ASCII string;
                                         // it should be a random and unique ascii string and different from all other devices
 
 // constants
-//const char mqttBroker[]  = "192.168.10.52"; // Local Rpi3 with mosquitto
 const int PUBLISH_INTERVAL  = 10000; // intervall to publish
 const int RECONNECT_DELAY   = 5000; // Try to reconnect mqtt server
 const int i2c_sda = 4;
@@ -67,7 +75,7 @@ struct Values
 
 // Function declarations
 Values read_bmp180(void);
-void reconnect();
+int mqtt_connect();
 void publish(Values);
 void callback(char* topic, byte* payload, unsigned int length);
 
@@ -88,7 +96,6 @@ void setup()
     Serial.println(ssid);
     while (WiFi.status() != WL_CONNECTED)
         {
-        Values values;
         delay(500);
         Serial.print(".");
         }
@@ -97,12 +104,21 @@ void setup()
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
 
-    //client.setServer(mqttBroker, 1883);
     client.setServer(MQTT_SERVER, 1883);
     client.setCallback(callback);
-    sprintf(topicSubscribe, "/v1.6/devices/%s/%s/lv", DEVICE_LABEL, VARIABLE_LABEL_SUBSCRIBE);
-    client.subscribe(topicSubscribe);
+    //sprintf(topicSubscribe, "/v1.6/devices/%s/%s/lv", DEVICE_LABEL, TOPIC_LEVEL_B);
+    //sprintf(topicSubscribe, "/%s/%s", DEVICE_LABEL, TOPIC_LEVEL_TEMP );
 
+    // BEST PRACTICE: Do not use leading '/'
+    //sprintf(topicSubscribe, "%s/%s", DEVICE_LABEL, TOPIC_LEVEL_TEMP );
+    sprintf(topicSubscribe, "%s/%s", TOPIC_LEVEL_SENSOR, TOPIC_LEVEL_SINGLE );
+    //client.subscribe(topicSubscribe);
+/* DEBUG */
+    //Serial.println("client.subscribe(topicSubscribe): ");
+    Serial.print("topicSubscribe: ");
+    Serial.print(topicSubscribe);
+    Serial.println("");
+/* DEBUG */
     Wire.begin(i2c_sda, i2c_scl);
     // Initialize the sensor (it is important to get calibration values stored on the device).
     if (bmp180.begin() == 0)
@@ -114,19 +130,117 @@ void setup()
 void loop()
 {
 Values values;
-    if (!client.connected())
+
+    mqtt_connect();
+    values = read_bmp180();
+    publish(values);
+/*
+    if (client.connect(MQTT_CLIENT_ID))
         {
+        Serial.println("MQTT Connected");
         client.subscribe(topicSubscribe);
-        reconnect();
-
-        sprintf(topic, "%s%s", "/v1.6/devices/", DEVICE_LABEL);
-        sprintf(payload, "%s", ""); // Cleans the payload
-        sprintf(payload, "{\"%s\":", VARIABLE_LABEL); // Adds the variable label
-
         values = read_bmp180();
         publish(values);
+        //Serial.println("published");
+        delay(PUBLISH_INTERVAL); // delay to next publish
+        //Serial.println("after interval");
         }
+    else
+        {
+        Serial.print("MQTT Connection FAIL!, rc=");
+        Serial.print(client.state());
+        Serial.print("\n");
+        delay(RECONNECT_DELAY);
+        }
+*/
 } // loop
+
+int mqtt_connect()
+{
+int state = 0;
+    while (!client.connected())
+        {
+        //Serial.print("Attempting MQTT connection to: ");
+        //Serial.print(MQTT_SERVER);
+        //Serial.print("\n");
+        // Attemp to connect
+        // if (client.connect(MQTT_CLIENT_ID, TOKEN, ""))
+        if (client.connect(MQTT_CLIENT_ID))
+            {
+            Serial.print("\n");
+            Serial.println("MQTT Connected.");
+            Serial.print(topicSubscribe);
+            Serial.print("\n");
+            client.subscribe(topicSubscribe);
+            }
+        else
+            {
+            Serial.print("MQTT Connection FAIL!, rc=");
+            state = client.state();
+            Serial.print(state);
+            Serial.print("\n");
+            delay(RECONNECT_DELAY);
+            }
+        }
+        return(state);
+} // connect
+
+void callback(char* topic, byte* payload, unsigned int length)
+{
+char p[length + 1];
+    memcpy(p, payload, length);
+    p[length] = NULL;
+    String message(p);
+    if (message == "0")
+        {
+        digitalWrite(intLed, HIGH);
+        }
+    else
+        {
+        digitalWrite(intLed, LOW);
+        }
+    Serial.print("callback: ");
+    Serial.write(payload, length);
+    Serial.println();
+} //callback
+
+void publish(Values values)
+{
+    // ************ publish Temperature **********************
+    float temperature = values.temperature;
+    //Serial.print("Temperature: ");
+    //Serial.print(temperature);
+    //Serial.println(" °C");
+    /* 4 is minimum width (xx.x), 1 is precision; float value is copied onto str_sensor*/
+    dtostrf(temperature, 4, 1, str_sensor);
+    sprintf(payload, "%s", ""); // Cleans the payload
+    sprintf(payload, "{\"%s\":", TOPIC_LEVEL_SENSOR); // Adds 1. level
+    sprintf(payload, "%s {\"temperature\": %s}}", payload, str_sensor); // Adds the value
+    Serial.println("");
+    Serial.println("Publishing temperature to local mosquitto server on RPI3");
+    Serial.println(payload);
+    client.publish(topic, payload);
+    //client.loop();
+    //delay(250);
+
+    // ************ publish Barometer **********************
+    float barometer = values.pressure;
+    //Serial.print("Barometer: ");
+    //Serial.print(barometer);
+    //Serial.println(" mbar");
+    /* 7 is minimum width (xxxx.x), 1 is precision; float value is copied onto str_sensor*/
+    dtostrf(barometer, 6, 1, str_sensor);
+    sprintf(payload, "%s", ""); // Cleans the payload
+    sprintf(payload, "{\"%s\":", TOPIC_LEVEL_SENSOR); // Adds 1. level
+    sprintf(payload, "%s {\"barometer\": %s}}", payload, str_sensor); // Adds the value
+    Serial.println("");
+    Serial.println("Publishing barometer to local mosquitto server on RPI3");
+    Serial.println(payload);
+
+    client.publish(topic, payload);
+    delay(PUBLISH_INTERVAL); // delay to next publish
+    client.loop();
+} // publish
 
 Values read_bmp180()
 {
@@ -174,13 +288,13 @@ Values values;
             Serial.println("getPressure FAILED!!!");
             }
         }
-        else
-            {
-            values.pressure = -99,99;
-            Serial.println("startPressure FAILED!!!");
-            }
-            //p0 = bmp180.sealevel(P,ALTITUDE); // we're at ALTIDUDE meters
-            //a = bmp180.altitude(P,p0); // Calculated altitude
+    else
+        {
+        values.pressure = -99,99;
+        Serial.println("startPressure FAILED!!!");
+        }
+        //p0 = bmp180.sealevel(P,ALTITUDE); // we're at ALTIDUDE meters
+        //a = bmp180.altitude(P,p0); // Calculated altitude
 /* DEBUG
     Serial.print("Temperature:      ");
     Serial.print(values.temperature);
@@ -193,76 +307,3 @@ Values values;
 DEBUG */
     return values;
 } //read_bmp180
-
-void reconnect()
-{
-    // Loop until we're reconnected
-    while (!client.connected())
-        {
-        Serial.println("Attempting MQTT connection to: ");
-        Serial.print(MQTT_SERVER);
-        Serial.print("\n");
-        // Attemp to connect
-        if (client.connect(MQTT_CLIENT_NAME, TOKEN, ""))
-            {
-            Serial.println("Connected");
-            client.subscribe(topicSubscribe);
-            }
-        else
-            {
-            Serial.print("Failed, rc=");
-            Serial.print(client.state());
-            Serial.print("\n");
-            delay(RECONNECT_DELAY);
-            }
-        }
-} // reconnect
-
-void callback(char* topic, byte* payload, unsigned int length)
-{
-char p[length + 1];
-    memcpy(p, payload, length);
-    p[length] = NULL;
-    String message(p);
-    if (message == "0")
-        {
-        digitalWrite(intLed, HIGH);
-        }
-    else
-        {
-        digitalWrite(intLed, LOW);
-        }
-    Serial.write(payload, length);
-    Serial.println();
-} //callback
-
-void publish(Values values)
-{
-    // ************ publish Temperature **********************
-    float temperature = values.temperature;
-    Serial.print("Temperature: ");
-    Serial.println(temperature);
-    Serial.print(" °C");
-    /* 4 is minimum width (xx.x), 1 is precision; float value is copied onto str_sensor*/
-    dtostrf(temperature, 4, 1, str_sensor);
-    sprintf(payload, "%s {\"value\": %s}}", payload, str_sensor); // Adds the value
-    //Serial.println("Publishing data to Ubidots Cloud");
-    Serial.println("Publishing temperature to local mosquitto server on RPI3");
-    client.publish(topic, payload);
-    client.loop();
-    //delay(250);
-
-    // ************ publish Barometer **********************
-    float barometer = values.pressure;
-    Serial.print("Barometer: ");
-    Serial.println(barometer);
-    Serial.print("mbar");
-    /* 7 is minimum width (xxxx.x), 1 is precision; float value is copied onto str_sensor*/
-    dtostrf(barometer, 6, 1, str_sensor);
-    sprintf(payload, "%s {\"value\": %s}}", payload, str_sensor); // Adds the value
-    //Serial.println("Publishing data to Ubidots Cloud");
-    Serial.println("Publishing barometer to local mosquitto server on RPI3");
-    client.publish(topic, payload);
-    client.loop();
-    delay(PUBLISH_INTERVAL); // delay to next publish
-} // publish
