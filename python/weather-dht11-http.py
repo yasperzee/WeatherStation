@@ -2,16 +2,25 @@
 #
 #*******  weather-dht11-http.py     Usage: python3 weather-dht11-http.py *******
 #
+#               Technology demo using http. ESP-01 as web-server.
+#               This script reads temperature and humidity from DHT-11 sensor
+#               connected to ESP-01 and updates valid values to google sheet.
+#
 #   TODO:       * Add failsafe incase server not available
 #               * Update sheet automaticly with timer,
 #                 so run script on raspberrypi by cron or something. . .
 #               * Build QT app to call this script
 #
 #   FIXME:      Nice to have:   * Should work with python2.7 also ???
-#                                 some issues with urllib on python2.7
-#               Mandatory:      * Meters on sheet should show LATEST values.
+#                                   -> some issues with urllib on python2.7
 #
-#   v0.1        yasperzee   2'19    modified for dht11 sensor
+#   v0.2        yasperzee   3'19    update
+#                   * Manipulate sheet so that NEW value is written to top row
+#                       --> Show on meters latest measured temperature & humidity
+#                       move rows down by one, delete row MAX_ROW+1, write values to top row
+#                   * if sensorValue == ERROR_VALUE, do NOT send ERROR_VALUE to sheet
+#
+#   v0.1        yasperzee   3'19    modified for dht11 sensor
 #
 #   v0.5        yasperzee   2'19    Some robustnest added to handle sensor values
 #                                   Add new values to next empty row.
@@ -33,6 +42,7 @@ from __future__ import print_function
 import datetime
 import pickle
 import os.path
+import time
 # Install Googleapiclient for python3 with pip3
 from googleapiclient.discovery import build
 # Install google-assistant-sdk for python3 with pip3
@@ -41,7 +51,8 @@ from google.auth.transport.requests import Request
 from urllib.request import urlopen
 
 # Get page with Temperature & Barometer values
-request_url     = 'http://192.168.10.39/4/on'
+request_url     = 'http://192.168.10.39/4/on' # home
+#request_url     = 'http://192.168.10.39/4/on' # mobile
 
 # If modifying these scopes, delete the file token.pickle.
 #SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -50,22 +61,21 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 # Sheet WeatherHerwood
 # The ID and range of a spreadsheet.
 SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'
-# SHEET_NAME      = 'BMP-180_01!'
 SHEET_NAME      = 'DHT11_01!'
 MIN_ROW = 3
-DATA_RANGE      = 'A'+str(MIN_ROW)
+MAX_ROW = 96 + MIN_ROW # 15min update interval => 96 readings / day
+DATA_RANGE      = 'A'+str(MIN_ROW)+':'+'D'+str(MAX_ROW)
 RANGE_NAME = SHEET_NAME + DATA_RANGE
-#MAX_ROW = 50
-MAX_ROW = 24
+RETRY_INTERVAL  = 10    #2*60 # 2min.
+UPDATE_INTERVAL = 5     #15*60 # 15min.
+ERROR_VALUE     = -999.9
 
 # Tags to find values on received html page
 # !!!! Must be updated ONLY together with nodemcu_weather software,
 # so must match literally with tags in nodemcu weatherserver response!!!
 # The SPACE after ':' is MANDATORY!
-tagTemp        = 'Temperature: '
-#tagPres        = 'Absolute pressure ' # for nodemcu_weather v0.2
-#tagPres        = 'Barometer  : ' # for nodemcu_weather v0.3
-tagHumid       = 'Humidity   : '
+tagTemp         = 'Temperature: '
+tagHumid        = 'Humidity   : '
 #*******************************************************************************
 class SensorValuesDHT11:
     # Constructor
@@ -74,13 +84,11 @@ class SensorValuesDHT11:
         self.valLen = 8
         # Parsed sensor values (float)
         self.temperatureVal  = 0
-        #self.pressureVal     = 0
         self.humidityVal     = 0
 
     # Destructor
     def __del__(self):
        class_name = self.__class__.__name__
-       #print (class_name, "destroyed")
 
     def readSensors(self):
         # Get webpage with sensor values
@@ -103,6 +111,7 @@ class SensorValuesDHT11:
                 valueStr = valueStr[:idx]
                 break
         self.temperatureVal = float(valueStr)
+
         # Humidity
         tagIndex = stringPage.find(tagHumid) + len(tagHumid)
         valIndex = tagIndex + self.valLen
@@ -120,9 +129,6 @@ class SensorValuesDHT11:
 
     def getHumid(self):
         return self.humidityVal
-
-    #def getBaro(self):
-    #    return self.pressureVal
 #*******************************************************************************
 #*******************************************************************************
 class Gredentials:
@@ -178,9 +184,6 @@ class ValuesToSheet:
             htmlPage = response.read()
             encoding = response.headers.get_content_charset('utf-8')
             stringPage = htmlPage.decode(encoding)
-            # Print Decoded page
-            #print(stringPage)
-            #print('')
 
     def writeSheet(self, creds):
         self.creds = creds
@@ -192,7 +195,6 @@ class ValuesToSheet:
         spreadsheet = service.spreadsheets() # Returns the spreadsheets Resource.
         if spreadsheet == 0:
             print('service FAIL!')
-
         # get date and time
         d_format = "%d-%b-%Y"
         t_format = "%H:%M"
@@ -201,26 +203,27 @@ class ValuesToSheet:
         time = now.strftime(t_format)
         print(today + " " + time)
 
+        # Read data-area, result type is "Value Range"
+        results = spreadsheet.values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range = ('A'+ str(MIN_ROW) + ':' + 'D' + str(MAX_ROW))).execute()
+        data_to_paste = results.get('values', [])
 
-        # Manipulate sheet so that NEW value is written to top row
-        #   --> Show on meters latest measured temperature & humidity
-        # move rows down by one, if MAX_ROW, delete bottom one, write values to top row
+        # Write data-area back to position MIN_ROW+1
+        request = service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range = ('A'+ str(MIN_ROW+1)),
+            valueInputOption='USER_ENTERED',
+            body={'values': data_to_paste}).execute()
 
-        # Read the row index on cell 'A1' and increment it by one
-        result = spreadsheet.values().get(spreadsheetId=SPREADSHEET_ID,range='A1').execute()
-        curr_row = result.get('values', [])
-        next_row = int(curr_row[0][0])
-        if next_row > MAX_ROW:
-            next_row = MIN_ROW
-        NEXT_ROW = 'A'+str(next_row)
-        next_row = next_row + 1
+        # Clear row MAX_ROW+1
+        request = service.spreadsheets().values().clear(
+            spreadsheetId=SPREADSHEET_ID,
+            range = ('A'+ str(MAX_ROW+1) + ':' + 'D' + str(MAX_ROW+1))).execute()
+
+        # update date, time and values to the first row in data-area
         result = service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID, range='A1', valueInputOption='USER_ENTERED',
-        body={'values': [[next_row]]}).execute()
-
-        #update date, time and values to next row
-        result = service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID, range=NEXT_ROW, valueInputOption='RAW',
+        spreadsheetId=SPREADSHEET_ID, range='A'+ str(MIN_ROW), valueInputOption='RAW',
         body={'values': [[ today, time, self.temp, self.humid ]]}).execute()
 
     def setTemp(temp):
@@ -228,36 +231,36 @@ class ValuesToSheet:
         return self.temp
 
     def setHumid(humid):
-        # add baro to sheet
+        # add humid to sheet
         return self.humid
-
-    #def setBaro(baro):
-    #    # add baro to sheet
-    #    return self.baro
 #*******************************************************************************
 #*******************************************************************************
 def main():
-    # If token.pickle does not exists, create newone.
-    istoken = Gredentials()
-    istoken.getToken();
-    creds = istoken.creds
-    del istoken
+    while 1:
+        # If token.pickle does not exists, create newone.
+        istoken = Gredentials()
+        istoken.getToken();
+        creds = istoken.creds
+        del istoken
 
-    # Read current Temperature & Barometer values
-    sval = SensorValuesDHT11()
-    sval.readSensors();
-    temp = sval.getTemp()
-    #baro = sval.getBaro()
-    humid = sval.getHumid()
-    del sval
+        # Read current Temperature & Barometer values
+        sval = SensorValuesDHT11()
+        sval.readSensors();
+        temp = sval.getTemp()
+        humid = sval.getHumid()
+        del sval
 
-    # Append values to spreadsheet
-    updateSheet = ValuesToSheet(temp, humid)
-    #updateSheet.readSheet(creds);
-    updateSheet.writeSheet(creds);
-    del updateSheet
-
-    print("T: " + str(temp) + ", " + "H: "+str(humid))
-#*******************************************************************************
+        # Append values to spreadsheet only if values are valid
+        if ( temp == ERROR_VALUE or humid == ERROR_VALUE ):
+            print("values invalid, sheet not updated! " + "T:" + str(temp) + ", " + "H:" + str(humid))
+            time.sleep(RETRY_INTERVAL)
+        else:
+            updateSheet = ValuesToSheet(temp, humid)
+            updateSheet.writeSheet(creds);
+            del updateSheet
+            print("T: " + str(temp) + ", " + "H: "+str(humid))
+            # sleep update_interval
+            time.sleep(UPDATE_INTERVAL)
+    #*******************************************************************************
 
 main()
