@@ -19,10 +19,16 @@
 
 /* ---------------- Version history --------------------------------------------
 # TODO: sleep
+# TODO: Support for BSE280 sensor w/ temperature, humidity & pressure.
+
+    Version 0.2     Yasperzee   3'19
+                    topic levels defined
+                    koti/oh/temperature
+                    koti/oh/humidity
 
     Version 0.1     Yasperzee   2'19
                     mqtt client functionality tested.
-    TODO: update to BSE280 sensor w/ temperature, humidity & pressure.
+
 
 ------------------------------------------------------------------------------*/
 
@@ -35,25 +41,36 @@
 // defines
 // #define ALTITUDE 119.0 // Altitude of Tampere-Pirkkala airport, Finland. In meters
 #define ALTITUDE 129.0 // Altitude of Kalkunvuori, Tampere Finland. In meters
-#define MQTT_SERVER "192.168.10.52" // Local Rpi3 with mosquitto
 
-#define TOPIC_LEVEL_SINGLE "+" // WILDCARD
-#define TOPIC_LEVEL_MULTI  "#" // WILDCARD
-//#define TOPIC_LEVEL_LOCATION "Home" // 0. level
-//#define VARIABLE_LABEL "sensor01" // Assing the variable label
-#define TOPIC_LEVEL_SENSOR "sensor01" // 1. level
-//#define VARIABLE_LABEL_SUBSCRIBE "temperature" // Assing the variable label
-#define TOPIC_LEVEL_TEMP "temperature" // 2. level
-#define TOPIC_LEVEL_BARO "barometer" // 2. level
-
-#define DEVICE_LABEL "BMP180_01" // Assing the device label
-// #define TOKEN ""
-#define MQTT_CLIENT_ID "node_01"    // MQTT client Name, please enter your own 8-12 alphanumeric character ASCII string;
+//#define MQTT_SERVER     "192.168.10.52" // Local Rpi3 with mosquitto
+#define MQTT_SERVER         "192.168.10.33" // Local W530 with mosquitto
+#define MQTT_DEVICE_LABEL   "BMP180_01" // Assing the device label
+#define MQTT_CLIENT_ID      "ESP01_01"    // MQTT client Name, please enter your own 8-12 alphanumeric character ASCII string;
                                         // it should be a random and unique ascii string and different from all other devices
 
+// topic level definitions
+#define TOPIC_WILDCARD_SINGLE "+"
+#define TOPIC_WILDCARD_MULTI  "#"
+
+#define TOPIC_LOCATION "koti"
+
+//#define TOPIC_ROOM "mh-1"   // makkari 1
+//#define TOPIC_ROOM "mh-2"   // makkari 2
+//#define TOPIC_ROOM "mh-3"   // makkari 3
+//#define TOPIC_ROOM "et"     // eteinen
+//#define TOPIC_ROOM "kt"     // keittiö
+#define TOPIC_ROOM "oh"     // olkkari
+//#define TOPIC_ROOM "ph"     // kylppäri
+//#define TOPIC_ROOM "wc"     // vessa
+//#define TOPIC_ROOM "ulkoilma"
+
+#define TOPIC_TEMP      "temperature"
+#define TOPIC_HUMID     "humidity"
+#define TOPIC_BARO      "barometer"
+
 // constants
-const int PUBLISH_INTERVAL  = 10000; // intervall to publish
-const int RECONNECT_DELAY   = 5000; // Try to reconnect mqtt server
+const int PUBLISH_INTERVAL  = 5000; // intervall to publish
+const int RECONNECT_DELAY   = 2500; // Try to reconnect mqtt server
 const int i2c_sda = 4;
 const int i2c_scl = 5;
 const int intLed  = 2; // LoLin v3 node mcu internal LED.
@@ -68,7 +85,6 @@ char str_sensor[10];
 // values from BMP180
 struct Values
     {
-    int num_of_sensors = 2;
     double temperature;
     double pressure;
     };
@@ -76,7 +92,8 @@ struct Values
 // Function declarations
 Values read_bmp180(void);
 int mqtt_connect();
-void publish(Values);
+int mqtt_subscribe(char topicSubscribe[]);
+void mqtt_publish(Values);
 void callback(char* topic, byte* payload, unsigned int length);
 
 SFE_BMP180 bmp180;
@@ -106,19 +123,14 @@ void setup()
 
     client.setServer(MQTT_SERVER, 1883);
     client.setCallback(callback);
-    //sprintf(topicSubscribe, "/v1.6/devices/%s/%s/lv", DEVICE_LABEL, TOPIC_LEVEL_B);
-    //sprintf(topicSubscribe, "/%s/%s", DEVICE_LABEL, TOPIC_LEVEL_TEMP );
 
     // BEST PRACTICE: Do not use leading '/'
-    //sprintf(topicSubscribe, "%s/%s", DEVICE_LABEL, TOPIC_LEVEL_TEMP );
-    sprintf(topicSubscribe, "%s/%s", TOPIC_LEVEL_SENSOR, TOPIC_LEVEL_SINGLE );
-    //client.subscribe(topicSubscribe);
-/* DEBUG */
-    //Serial.println("client.subscribe(topicSubscribe): ");
+    //sprintf(topicSubscribe, "%s/%s/%s", TOPIC_LOCATION, TOPIC_ROOM, TOPIC_TEMP );
+/* DEBUG
     Serial.print("topicSubscribe: ");
     Serial.print(topicSubscribe);
     Serial.println("");
-/* DEBUG */
+DEBUG */
     Wire.begin(i2c_sda, i2c_scl);
     // Initialize the sensor (it is important to get calibration values stored on the device).
     if (bmp180.begin() == 0)
@@ -130,81 +142,58 @@ void setup()
 void loop()
 {
 Values values;
+int state =0;
+    state = mqtt_connect();
 
-    mqtt_connect();
+    //mqtt_subscribe(topicSubscribe);
+
     values = read_bmp180();
-    publish(values);
-/*
-    if (client.connect(MQTT_CLIENT_ID))
-        {
-        Serial.println("MQTT Connected");
-        client.subscribe(topicSubscribe);
-        values = read_bmp180();
-        publish(values);
-        //Serial.println("published");
-        delay(PUBLISH_INTERVAL); // delay to next publish
-        //Serial.println("after interval");
-        }
-    else
-        {
-        Serial.print("MQTT Connection FAIL!, rc=");
-        Serial.print(client.state());
-        Serial.print("\n");
-        delay(RECONNECT_DELAY);
-        }
-*/
+    mqtt_publish(values);
+    delay(PUBLISH_INTERVAL); // delay to next publish
+
 } // loop
 
 int mqtt_connect()
 {
 int state = 0;
-    while (!client.connected())
+    if (!client.connected())
         {
-        //Serial.print("Attempting MQTT connection to: ");
-        //Serial.print(MQTT_SERVER);
-        //Serial.print("\n");
-        // Attemp to connect
-        // if (client.connect(MQTT_CLIENT_ID, TOKEN, ""))
         if (client.connect(MQTT_CLIENT_ID))
             {
             Serial.print("\n");
-            Serial.println("MQTT Connected.");
-            Serial.print(topicSubscribe);
-            Serial.print("\n");
-            client.subscribe(topicSubscribe);
+            Serial.println("MQTT re-connected.");
+            //Serial.println("topicSubdsribe: ");
+            //Serial.print(topicSubscribe);
+            //Serial.print("\n");
             }
         else
             {
-            Serial.print("MQTT Connection FAIL!, rc=");
-            state = client.state();
-            Serial.print(state);
             Serial.print("\n");
-            delay(RECONNECT_DELAY);
+            Serial.print("MQTT re-connection FAIL! ");
+            //delay(RECONNECT_DELAY);
             }
-        }
-        return(state);
-} // connect
-
-void callback(char* topic, byte* payload, unsigned int length)
-{
-char p[length + 1];
-    memcpy(p, payload, length);
-    p[length] = NULL;
-    String message(p);
-    if (message == "0")
-        {
-        digitalWrite(intLed, HIGH);
         }
     else
         {
-        digitalWrite(intLed, LOW);
+        Serial.println("");
+        Serial.println("MQTT already connected.");
         }
-    Serial.print("callback: ");
-    Serial.write(payload, length);
-    Serial.println();
-} //callback
+        state = client.state();
+        return(state);
+} // mqtt_connect
 
-void publish(Values values)
+int mqtt_subscribe(char topicSubscribe[])
+{
+    Serial.print("mqtt_subdsribe: ");
+    Serial.print(topicSubscribe);
+    Serial.print("\n");
+    // BEST PRACTICE: Do not use leading '/'
+    //sprintf(topicSubscribe, "%s/%s/%s", TOPIC_LOCATION, TOPIC_ROOM, TOPIC_WILDCARD_MULTI );
+    //client.subscribe(topicSubscribe);
+    // do something with response --> callback
+}
+
+void mqtt_publish(Values values)
 {
     // ************ publish Temperature **********************
     float temperature = values.temperature;
@@ -214,14 +203,18 @@ void publish(Values values)
     /* 4 is minimum width (xx.x), 1 is precision; float value is copied onto str_sensor*/
     dtostrf(temperature, 4, 1, str_sensor);
     sprintf(payload, "%s", ""); // Cleans the payload
-    sprintf(payload, "{\"%s\":", TOPIC_LEVEL_SENSOR); // Adds 1. level
-    sprintf(payload, "%s {\"temperature\": %s}}", payload, str_sensor); // Adds the value
+    // BEST PRACTICE: Do not use leading '/'
+    sprintf(topic, "%s/%s/%s", TOPIC_LOCATION, TOPIC_ROOM, TOPIC_TEMP );
+    sprintf(payload, "{\"temperature\": %s}", str_sensor); // Adds the value
+    //sprintf(payload, "{%s {\"temperature\": %s}}", payload, str_sensor); // Adds the value
     Serial.println("");
-    Serial.println("Publishing temperature to local mosquitto server on RPI3");
-    Serial.println(payload);
+    Serial.println("Publishing temperature to local mosquitto server");
+    Serial.print("topic: ");
+    Serial.println(topic);
+    Serial.print("payload: ");
+    Serial.print(payload);
+    Serial.println("");
     client.publish(topic, payload);
-    //client.loop();
-    //delay(250);
 
     // ************ publish Barometer **********************
     float barometer = values.pressure;
@@ -231,14 +224,17 @@ void publish(Values values)
     /* 7 is minimum width (xxxx.x), 1 is precision; float value is copied onto str_sensor*/
     dtostrf(barometer, 6, 1, str_sensor);
     sprintf(payload, "%s", ""); // Cleans the payload
-    sprintf(payload, "{\"%s\":", TOPIC_LEVEL_SENSOR); // Adds 1. level
-    sprintf(payload, "%s {\"barometer\": %s}}", payload, str_sensor); // Adds the value
+    // BEST PRACTICE: Do not use leading '/'
+    sprintf(topic, "%s/%s/%s", TOPIC_LOCATION, TOPIC_ROOM, TOPIC_BARO );
+    sprintf(payload, "{\"barometer\": %s}", str_sensor); // Adds the value
     Serial.println("");
-    Serial.println("Publishing barometer to local mosquitto server on RPI3");
-    Serial.println(payload);
-
+    Serial.println("Publishing barometer to local mosquitto server");
+    Serial.print("topic: ");
+    Serial.println(topic);
+    Serial.print("payload: ");
+    Serial.print(payload);
+    Serial.println("");
     client.publish(topic, payload);
-    delay(PUBLISH_INTERVAL); // delay to next publish
     client.loop();
 } // publish
 
@@ -307,3 +303,22 @@ Values values;
 DEBUG */
     return values;
 } //read_bmp180
+
+void callback(char* topic, byte* payload, unsigned int length)
+{
+char p[length + 1];
+    memcpy(p, payload, length);
+    p[length] = NULL;
+    String message(p);
+    if (message == "0")
+        {
+        digitalWrite(intLed, HIGH);
+        }
+    else
+        {
+        digitalWrite(intLed, LOW);
+        }
+    Serial.print("callback: ");
+    Serial.write(payload, length);
+    Serial.println();
+} //callback
