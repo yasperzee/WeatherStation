@@ -22,6 +22,8 @@
 #                   * Cleanup webpage, remove LED control etc
 #                   * Send local IP to dedicated e-mail after 1. connect
 #
+#   Version 0.5     Yasperzee   3'19    Cleaning for release
+#
 #   Version 0.4     Yasperzee   2'19
 #                   Some additional comments etc
 #
@@ -73,7 +75,7 @@ WiFiServer server(80);
 SFE_BMP180 bmp180;
 
 void setup()
-{
+    {
     Serial.begin(115200);
     // Initialize the output variables as outputs
     pinMode(intLed,  OUTPUT);
@@ -101,89 +103,89 @@ void setup()
         {
         Serial.println("BMP180 init FAIL!!");
         }
-} // setup_
+    } // setup_
 
 void loop()
-{
-Values values;
-WiFiClient client = server.available();   // Listen for incoming clients
-if (client)
-    { // If a new client connects
-    Serial.println("New Client.");
-    String currentLine = ""; // make a String to hold incoming data from the client
-    while (client.connected())
-        { // loop while the client's connected
-        if (client.available())
-            { // if there's bytes to read from the client,
-            char c = client.read();
-            Serial.write(c);
-            header += c;
-            if (c == '\n')
-                { // if the byte is a newline character
-                // if the current line is blank, you got two newline characters in a row.
-                // that's the end of the client HTTP request, so send a response:
-                if (currentLine.length() == 0)
-                    {
-                    Serial.println("Send response");
-                    // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-                    // and a content-type so the client knows what's coming, then a blank line:
-                    client.println("HTTP/1.1 200 OK");
-                    client.println("Content-type:text/html");
-                    client.println("Connection: close");
-                    client.println();
-                    // turns the GPIOs on and off
-                    if (header.indexOf("GET /5/on") >= 0)
+    {
+    WiFiClient client = server.available();   // Listen for incoming clients
+    if (client)
+        { // If a new client connects
+        Serial.println("New Client.");
+        String currentLine = ""; // make a String to hold incoming data from the client
+        while (client.connected())
+            { // loop while the client's connected
+            if (client.available())
+            Values values;
+                { // if there's bytes to read from the client,
+                char c = client.read();
+                Serial.write(c);
+                header += c;
+                if (c == '\n')
+                    { // if the byte is a newline character
+                    // if the current line is blank, you got two newline characters in a row.
+                    // that's the end of the client HTTP request, so send a response:
+                    if (currentLine.length() == 0)
                         {
-                        Serial.println("intLed on");
-                        intLedState  = "on";
-                        digitalWrite(intLed, LOW);
+                        Serial.println("Send response");
+                        // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+                        // and a content-type so the client knows what's coming, then a blank line:
+                        client.println("HTTP/1.1 200 OK");
+                        client.println("Content-type:text/html");
+                        client.println("Connection: close");
+                        client.println();
+                        // turns the GPIOs on and off
+                        if (header.indexOf("GET /5/on") >= 0)
+                            {
+                            Serial.println("intLed on");
+                            intLedState  = "on";
+                            digitalWrite(intLed, LOW);
+                            }
+                        else if (header.indexOf("GET /5/off") >= 0)
+                            {
+                            Serial.println("intLed off");
+                            intLedState  = "off";
+                            digitalWrite(intLed, HIGH);
+                            }
+                        else if (header.indexOf("GET /4/on") >= 0)
+                            {
+                             // Serial.println("Get measurements 1");
+                             getValuesState = "on";
+                            }
+                        else if (header.indexOf("GET /4/off") >= 0)
+                            {
+                            // Serial.println("Get measurements 2");
+                            getValuesState= "off";
+                            }
+                        // Send the HTML web page
+                        String tmp = build_html();
+                        //Serial.println(tmp);
+                        client.println(tmp);
+                        client.println("Connection: close");
+                        // Break out of the while loop
+                        break;
+                        } // if (currentLine.length() == 0)
+                    else
+                        { // if you got a newline, then clear currentLine
+                        currentLine = "";
                         }
-                    else if (header.indexOf("GET /5/off") >= 0)
-                        {
-                        Serial.println("intLed off");
-                        intLedState  = "off";
-                        digitalWrite(intLed, HIGH);
-                        }
-                    else if (header.indexOf("GET /4/on") >= 0)
-                        {
-                         // Serial.println("Get measurements 1");
-                         getValuesState = "on";
-                        }
-                    else if (header.indexOf("GET /4/off") >= 0)
-                        {
-                        // Serial.println("Get measurements 2");
-                        getValuesState= "off";
-                        }
-                    // Send the HTML web page
-                    String tmp = build_html();
-                    //Serial.println(tmp);
-                    client.println(tmp);
-                    client.println("Connection: close");
-                    // Break out of the while loop
-                    break;
-                    } // if (currentLine.length() == 0)
-                else
-                    { // if you got a newline, then clear currentLine
-                    currentLine = "";
+                    } // if (c == '\n')
+                else if (c != '\r')
+                    {  // if you got anything else but a carriage return character,
+                    currentLine += c; // add it to the end of the currentLine
                     }
-                } // if (c == '\n')
-            else if (c != '\r')
-                {  // if you got anything else but a carriage return character,
-                currentLine += c; // add it to the end of the currentLine
-                }
-            } // if (client.available())
-        } // while (client.connected())
-    // Clear the header variable
-    header = "";
-    // Close the connection
-    client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
-    }  // if(client)
-} // loop
+                } // if (client.available())
+            } // while (client.connected())
+        // Clear the header variable
+        header = "";
+        // Close the connection
+        client.stop();
+        Serial.println("Client disconnected.");
+        Serial.println("");
+        }  // if(client)
+    } // loop
 
 Values read_bmp180()
-{
+    {
     char bmp180_status;
     double T,P,p0,a;
     Values values;
@@ -222,7 +224,6 @@ Values read_bmp180()
         // (If temperature is stable, you can do one temperature measurement for number of pressure measurements.)
         // Function returns 1 if successful, 0 if failure.
         bmp180_status = bmp180.getPressure(P,T);
-        //values.pressure = P;
         values.pressure = round(P*10)/10.0; // round to one decimal
         if(bmp180_status == 0)
             {
@@ -230,13 +231,13 @@ Values read_bmp180()
             Serial.println("getPressure FAILED!!!");
             }
         }
-        else
-            {
-            values.pressure = -99,99;
-            Serial.println("startPressure FAILED!!!");
-            }
-            //p0 = bmp180.sealevel(P,ALTITUDE); // we're at ALTIDUDE meters
-            //a = bmp180.altitude(P,p0); // Calculated altitude
+    else
+        {
+        values.pressure = -99,99;
+        Serial.println("startPressure FAILED!!!");
+        }
+        //p0 = bmp180.sealevel(P,ALTITUDE); // we're at ALTIDUDE meters
+        //a = bmp180.altitude(P,p0); // Calculated altitude
 /* DEBUG
     Serial.print("Temperature:      ");
     Serial.print(values.temperature);
@@ -251,7 +252,7 @@ DEBUG */
 } //read_bmp180
 
 String build_html(void)
-{ // returns String webpage
+    { // returns String webpage
     Values values;
     String webpage;
 
@@ -303,4 +304,4 @@ String build_html(void)
     webpage += "";
 
     return (webpage);
-}
+    }

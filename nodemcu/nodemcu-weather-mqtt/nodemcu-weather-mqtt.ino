@@ -21,6 +21,8 @@
 # TODO: sleep
 # TODO: Support for BSE280 sensor w/ temperature, humidity & pressure.
 
+    Version 0.3     Yasperzee   3'19    Cleaning for release
+                    
     Version 0.2     Yasperzee   3'19
                     topic levels defined
                     koti/oh/temperature
@@ -101,7 +103,7 @@ WiFiClient mqtt_client;
 PubSubClient client(mqtt_client);
 
 void setup()
-{
+    {
     Serial.begin(115200);
     // Initialize the output variables as outputs
     pinMode(intLed,  OUTPUT);
@@ -137,25 +139,23 @@ DEBUG */
         {// continue anyway but show valeus as "-99.9"
         Serial.println("BMP180 init FAIL!!");
         }
-} // setup_
+    } // setup_
 
 void loop()
-{
-Values values;
-int state =0;
+    {
+    Values values;
+    int state =0;
+
     state = mqtt_connect();
-
-    //mqtt_subscribe(topicSubscribe);
-
     values = read_bmp180();
+
     mqtt_publish(values);
     delay(PUBLISH_INTERVAL); // delay to next publish
-
-} // loop
+    } // loop
 
 int mqtt_connect()
-{
-int state = 0;
+    {
+    int state = 0;
     if (!client.connected())
         {
         if (client.connect(MQTT_CLIENT_ID))
@@ -180,10 +180,10 @@ int state = 0;
         }
         state = client.state();
         return(state);
-} // mqtt_connect
+    } // mqtt_connect
 
 int mqtt_subscribe(char topicSubscribe[])
-{
+    {
     Serial.print("mqtt_subdsribe: ");
     Serial.print(topicSubscribe);
     Serial.print("\n");
@@ -191,10 +191,10 @@ int mqtt_subscribe(char topicSubscribe[])
     //sprintf(topicSubscribe, "%s/%s/%s", TOPIC_LOCATION, TOPIC_ROOM, TOPIC_WILDCARD_MULTI );
     //client.subscribe(topicSubscribe);
     // do something with response --> callback
-}
+    }
 
 void mqtt_publish(Values values)
-{
+    {
     // ************ publish Temperature **********************
     float temperature = values.temperature;
     //Serial.print("Temperature: ");
@@ -236,13 +236,13 @@ void mqtt_publish(Values values)
     Serial.println("");
     client.publish(topic, payload);
     client.loop();
-} // publish
+    } // publish
 
 Values read_bmp180()
-{
-char bmp180_status;
-double T,P,p0,a;
-Values values;
+    {
+    char bmp180_status;
+    double T,P,p0,a;
+    Values values;
 
     bmp180_status = bmp180.startTemperature();
 
@@ -302,14 +302,15 @@ Values values;
     Serial.print("\n");
 DEBUG */
     return values;
-} //read_bmp180
+    } //read_bmp180
 
 void callback(char* topic, byte* payload, unsigned int length)
-{
-char p[length + 1];
+    {
+    char p[length + 1];
     memcpy(p, payload, length);
     p[length] = NULL;
     String message(p);
+
     if (message == "0")
         {
         digitalWrite(intLed, HIGH);
@@ -321,4 +322,4 @@ char p[length + 1];
     Serial.print("callback: ");
     Serial.write(payload, length);
     Serial.println();
-} //callback
+    } //callback
