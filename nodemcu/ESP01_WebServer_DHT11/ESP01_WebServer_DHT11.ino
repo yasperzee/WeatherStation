@@ -1,36 +1,41 @@
-/***************************** ESP01_WebServer_DHT11.ino *****************************
-#
-# Description:  Read temperature & humidity from DHT11 sensor, ESP-01 acts as
-#               webserver, builds webpage with temperature and humidity values.
-#
-# Components:   - ESP-01 esp8266 NodeMcu
-#               - DHT11 sensor
-#
-# The circuit:  - DHT-11 Data -> ESP-01 gpio 0
-#
-# IDE & tools:  - Arduino IDE 1.8.8, UBUNTU 18.04 LTS
-#
-# Librarys:     - git clone https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WiFi
-#               - git clone https://github.com/adafruit/DHT-sensor-library
-#               - git clone https://github.com/adafruit/Adafruit_Sensor
-#
-# IDE & tools:  - Arduino IDE 1.8.8, UBUNTU 18.04 LTS
-#
-# References:   -
-#
-#-------------------------------------------------------------------------------
-#
-#   Version 0.3     Yasperzee   3'19    Cleaning for release
-#
-#   Version 0.2     Yasperzee   2'19
-#                   DHT-11 Data pin to ESP-01 gpio 0, removed LED
-#   Version 0.1     Yasperzee   2'19
-#                   nodemcuWeather modified to support ESP-01 and DHT-11.
-#
+/***************************** ESP01_WebServer_DHT11.ino ***********************
+
+  Description:  Read temperature & humidity from DHT11 sensor, ESP-01 acts as
+                webserver, builds webpage with temperature and humidity values.
+
+  Components:   - ESP-01 esp8266 NodeMcu
+                - DHT11 temperature and humidity sensor
+
+  The circuit:  - DHT-11 Data -> ESP-01 gpio 0
+
+  IDE & tools:  - Arduino IDE 1.8.8, UBUNTU 18.04 LTS
+
+  Librarys:     - https://github.com/esp8266/Arduino
+                - https://github.com/adafruit/DHT-sensor-library
+                - https://github.com/adafruit/Adafruit_Sensor
+
+  IDE & tools:  - Arduino IDE 1.8.8, UBUNTU 18.04 LTS
+
+  References:   -
 *******************************************************************************/
+
+/*------------------------------------------------------------------------------
+
+    Version 0.3     3'19    Yasperzee
+                    Cleaning for release
+
+    Version 0.2     2'19    Yasperzee
+                    DHT-11 Data pin to ESP-01 gpio 0, removed LED
+
+    Version 0.1     2'19    Yasperzee
+                    nodemcuWeather modified to support ESP-01 and DHT-11.
+
+------------------------------------------------------------------------------*/
+
 // includes
 #include "ssid.h"  // SSID and PASS strings for local network
-#include <ESP8266WiFi.h>
+#include <Arduino.h>
+#include "ESP8266WiFi.h"
 #include "DHT.h"
 
 // defines
@@ -38,8 +43,10 @@
 #define BAUDRATE    115200
 #define DHT_PIN 	0 // ESP-01 gpio 0
 //#define DHT_PIN 	2 // ESP-01 gpio 2
-
+#define RETRY_WIFI_TIME     500 //ms
 #define DHT_TYPE 	DHT11
+#define SENSOR      "DHT-11"
+#define NODEMCU     "ESP-01"
 
 // constants
 const float ErrorValue = -999.9;
@@ -88,8 +95,6 @@ void setup()
 
 void loop()
     {
-    Values values; // #CHECK ME: is this unused
-
     WiFiClient client = server.available();   // Listen for incoming clients
 
     if (client)
@@ -118,11 +123,11 @@ void loop()
                         client.println();
 
                         // GET values
-                        if (header.indexOf("GET /4/on") >= 0)
+                        if (header.indexOf("GET /TH/on") >= 0)
                             {
                              getValuesState = "on";
                             }
-                        else if (header.indexOf("GET /4/off") >= 0)
+                        else if (header.indexOf("GET /TH/off") >= 0)
                             {
                             getValuesState= "off";
                             }
@@ -196,14 +201,18 @@ String build_html(void)
     if (getValuesState=="off")
         {
         webpage += "<p>Get measurements </p>";
-        webpage += "<p><a href=\"/4/on\"><button class=\"button\">GET</button></a></p>";
-        webpage += "<p> temperature and humidity values here </p>";
+        webpage += "<p><a href=\"/TH/on\"><button class=\"button\">GET</button></a></p>";
+        webpage += "<p> Temperature and Humidity values from ";
+        webpage +=  NODEMCU;
+        webpage +=  "/";
+        webpage +=  SENSOR ;
+        webpage += "</p>";
         }
     else
         {
         values = read_dht11();
         webpage += "<p>Got measurements </p>";
-        webpage += "<p><a href=\"/4/off\"><button class=\"button button2\">GOT</button></a></p>";
+        webpage += "<p><a href=\"/TH/off\"><button class=\"button button2\">GOT</button></a></p>";
         // Print temperature and humidity values here
         webpage += "<p>Temperature: ";
         webpage += (values.temperature);
