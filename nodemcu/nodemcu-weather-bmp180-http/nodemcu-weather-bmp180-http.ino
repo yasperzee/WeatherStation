@@ -2,8 +2,9 @@
 #
 # Location:         ---- path to github ----
 #
-# Description:      Reads temperature & pressure from bmp180 sensor,
-#                   Acts as webserver, builds webpage with temperature and Barometer values
+# Description:      Reads temperature & pressure from bmp180 sensor, NodeMcu Acts as
+#                   webserver, builds webpage with temperature and Barometer values
+#
 #
 # Components:   - LoLin v3 esp8266 NodeMcu
 #               - BMP180 sensor w/ temperature and barometer
@@ -17,7 +18,7 @@
 #
 #-------------------------------------------------------------------------------
 #
-#   TODO:           * Add support for BME280 sensor w/ temperature, humidity & barometer.
+#TODO:              * Add support for BME280 sensor w/ temperature, humidity & barometer.
 #                   * Add support for DHT11 sensor w/ temerature and humidity
 #                   * Cleanup webpage, remove LED control etc
 #                   * Send local IP to dedicated e-mail after 1. connect

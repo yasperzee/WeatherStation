@@ -16,8 +16,8 @@
 #
 #   v0.2        yasperzee   3'19    update
 #                   * Manipulate sheet so that NEW value is written to top row
-#                       --> Show on meters latest measured temperature & humidity
-#                       move rows down by one, delete row MAX_ROW+1, write values to top row
+#                     --> Show on meters latest measured temperature & humidity
+#                         move rows down by one, delete row MAX_ROW+1, write values to top row
 #                   * if sensorValue == ERROR_VALUE, do NOT send ERROR_VALUE to sheet
 #
 #   v0.1        yasperzee   3'19    modified for dht11 sensor
@@ -63,7 +63,7 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'
 SHEET_NAME      = 'DHT11_01!'
 MIN_ROW = 3
-MAX_ROW = 96 + MIN_ROW # 15min update interval => 96 readings / day
+MAX_ROW = 96 + MIN_ROW # 15min update interval => 96 records / day
 DATA_RANGE      = 'A'+str(MIN_ROW)+':'+'D'+str(MAX_ROW)
 RANGE_NAME = SHEET_NAME + DATA_RANGE
 RETRY_INTERVAL  = 10    #2*60 # 2min.

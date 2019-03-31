@@ -1,7 +1,7 @@
 /***************************** ESP01_WebServer_DHT11.ino *****************************
 #
-# Description:      Read temperature & humidity from DHT11 sensor, ESP-01 acts as
-                    webserver, builds webpage with temperature and humidity values.
+# Description:  Read temperature & humidity from DHT11 sensor, ESP-01 acts as
+#               webserver, builds webpage with temperature and humidity values.
 #
 # Components:   - ESP-01 esp8266 NodeMcu
 #               - DHT11 sensor
@@ -17,8 +17,6 @@
 # IDE & tools:  - Arduino IDE 1.8.8, UBUNTU 18.04 LTS
 #
 # References:   -
-#
-# Test level:   (Linted, BuBo)
 #
 #-------------------------------------------------------------------------------
 #
@@ -36,6 +34,8 @@
 #include "DHT.h"
 
 // defines
+#define PORT        80
+#define BAUDRATE    115200
 #define DHT_PIN 	0 // ESP-01 gpio 0
 //#define DHT_PIN 	2 // ESP-01 gpio 2
 
@@ -61,13 +61,13 @@ Values read_dht11(void);
 String build_html(void);
 
 // Set web server port number to 80
-WiFiServer server(80);
+WiFiServer server(PORT);
 // Initialize DHT sensor.
 DHT dht(DHT_PIN, DHT_TYPE);
 
 void setup()
     {
-    Serial.begin(115200);
+    Serial.begin(BAUDRATE);
     // Connect to Wi-Fi network with SSID and password
     Serial.print("Connecting to ");
     Serial.println(ssid);
@@ -88,7 +88,7 @@ void setup()
 
 void loop()
     {
-    Values values;
+    Values values; // #CHECK ME: is this unused
 
     WiFiClient client = server.available();   // Listen for incoming clients
 
@@ -130,7 +130,7 @@ void loop()
                         String tmp = build_html();
                         //Serial.println(tmp);
                         client.println(tmp);
-                        client.println("Connection: closed");
+                        client.println("Connection closed.");
                         // Break out of the while loop
                         break;
                         } // if (currentLine.length() == 0)
@@ -169,7 +169,7 @@ Values read_dht11(void)
     // Check if any reads failed and exit early (to try again).
     if (isnan(H) || isnan(T))
         {
-        Serial.println(F("Failed to read from DHT sensor!"));
+        Serial.println(F("Failed to read DHT sensor!"));
         values.temperature = ErrorValue;
         values.humidity = ErrorValue;
       	}
