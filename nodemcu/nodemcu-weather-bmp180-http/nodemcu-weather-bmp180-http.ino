@@ -1,9 +1,7 @@
-/***************************** nodemcu-weather-http.ino *****************************
+/***************************** nodemcu-weather-http.ino ************************
 #
-# Location:         ---- path to github ----
-#
-# Description:      Reads temperature & pressure from bmp180 sensor, NodeMcu Acts as
-#                   webserver, builds webpage with temperature and Barometer values
+# Description:  Reads temperature & pressure from bmp180 sensor, NodeMcu Acts as
+#               webserver, builds webpage with temperature and Barometer values
 #
 #
 # Components:   - LoLin v3 esp8266 NodeMcu
@@ -11,19 +9,20 @@
 #
 # The circuit:  - bmp180 -> NodeMcu:   SCL -> D1(gpio5), SDA -> D2(gpio4)
 #
-# Librarys:     - git clone https://github.com/sparkfun/BMP180_Breakout
-#               - https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WiFi
+¤ Librarys:     - https://github.com/esp8266/Arduino
+#               - https://github.com/sparkfun/BMP180_Breakout
 #
 # References:   -
 #
 #-------------------------------------------------------------------------------
 #
-#TODO:              * Add support for BME280 sensor w/ temperature, humidity & barometer.
-#                   * Add support for DHT11 sensor w/ temerature and humidity
+#TODO:              * Use ESP01_WebServer_DHT11.ino as reference for this
+#                   * as latest develompent is there
+#                   * Add support for BMB280 and BME280 sensors
 #                   * Cleanup webpage, remove LED control etc
 #                   * Send local IP to dedicated e-mail after 1. connect
 #
-#   Version 0.5     Yasperzee   3'19    Cleaning for release
+#   Version 0.5     Yasperzee   3'19    for Release, see TODO!!!
 #
 #   Version 0.4     Yasperzee   2'19
 #                   Some additional comments etc
@@ -41,8 +40,9 @@
 *******************************************************************************/
 // includes
 #include "ssid.h"  // SSID and PASS strings for local network
+#include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <SFE_BMP180.h>
+#include "SFE_BMP180.h"
 
 // defines
 // #define ALTITUDE 119.0 // Altitude of Tampere-Pirkkala airport, Finland. in meters

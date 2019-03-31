@@ -3,15 +3,10 @@
 #****** weather-bmp180-http.py     Usage: python3 weather-bmp180-http.py *******
 #
 #
-#   TODO:       * Add failsafe incase server not available
-#               * Update sheet automaticly with timer,
-#                 so run script on raspberrypi by cron or something. . .
-#               * Build QT app to call this script
-#               * Branch: MQTT
+#   TODO:       * Take weather-esp01-dht11-http.py as reference for
+#                 this as latest develoment is there.
 #
-#   FIXME:      Nice to have:   * Should work with python2.7 also ???
-#                                 some issues with urllib on python2.7
-#               Mandatory:      * Meters on sheet should show LATEST values.
+#   v0.7        yasperzee   3'19    for Release, see TODO!!!
 #
 #   v0.6        yasperzee   2'19    Name of the script changed, support for
 #                                   DHT-11 sensor modified to another file.
