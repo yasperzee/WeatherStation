@@ -1,12 +1,12 @@
-/***************************** ESP01_WebServer_DHT11.ino ***********************
+/***************************** ESP01_weather_DHT.ino ***********************
 
-  Description:  Read temperature & humidity from DHT11 sensor, ESP-01 acts as
+  Description:  Read temperature & humidity from DHT11 & DHT22 sensor, ESP-01 acts as
                 webserver, builds webpage with temperature and humidity values.
 
   Components:   - ESP-01 esp8266 NodeMcu
-                - DHT11 temperature and humidity sensor
+                - DHT11 or DHT22 temperature and humidity sensor
 
-  The circuit:  - DHT-11 Data -> ESP-01 gpio 0
+  The circuit:  - DHT-XX Data -> ESP-01 gpio 0
 
   IDE & tools:  - Arduino IDE 1.8.8, UBUNTU 18.04 LTS
 
@@ -20,6 +20,10 @@
 *******************************************************************************/
 
 /*------------------------------------------------------------------------------
+
+    Version 0.4     4'19    Yasperzee
+                    File name changed, DHT22 support added.
+                    Some information about node and sensor added to webpage
 
     Version 0.3     3'19    Yasperzee
                     Cleaning for release
@@ -43,12 +47,20 @@
 #define BAUDRATE    115200
 #define DHT_PIN 	0 // ESP-01 gpio 0
 //#define DHT_PIN 	2 // ESP-01 gpio 2
-#define RETRY_WIFI_TIME     500 //ms
-#define DHT_TYPE 	DHT11
-#define SENSOR      "DHT-11"
-#define NODEMCU     "ESP-01"
 
+// Select DHT sensor in use,<s values from DHT.h
+#define DHT_TYPE 	DHT11
+//#define DHT_TYPE 	DHT22
+
+//Select strings for Sensor and Node, used for information and debug
+String SENSOR  =  "DHT-11";
+//String SENSOR  =  "DHT-22";
+String NODEMCU  =  "ESP-01";
+//String NODEMCU  =  "NodeMcu";
+
+#define RETRY_WIFI_TIME     500 //ms
 // constants
+
 const float ErrorValue = -999.9;
 // variables
 String getValuesState   = "off";
@@ -56,7 +68,7 @@ String getValuesState   = "off";
 // Variable to store the HTTP request
 String header;
 
-// values from DHT11
+// values from DHT read_dht_sensor
 struct Values
     {
     float temperature;
@@ -64,7 +76,8 @@ struct Values
     };
 
 // Functions
-Values read_dht11(void);
+//Values read_dht11(void);
+Values read_dht_sensor(void);
 String build_html(void);
 
 // Set web server port number to 80
@@ -91,6 +104,8 @@ void setup()
     Serial.println(WiFi.localIP());
     server.begin();
     dht.begin();
+    Serial.println("Node is " + NODEMCU);
+    Serial.println("Sensor is " + SENSOR);
     } // setup
 
 void loop()
@@ -159,7 +174,8 @@ void loop()
         }  // if(client)
     } // loop
 
-Values read_dht11(void)
+//Values read_dht11(void)
+Values read_dht_sensor(void)
     {
     float T,H;
     Values values;
@@ -202,15 +218,15 @@ String build_html(void)
         {
         webpage += "<p>Get measurements </p>";
         webpage += "<p><a href=\"/TH/on\"><button class=\"button\">GET</button></a></p>";
-        webpage += "<p> Temperature and Humidity values from ";
+        webpage += "<p> Node: ";
         webpage +=  NODEMCU;
-        webpage +=  "/";
+        webpage += "   Sensor: ";
         webpage +=  SENSOR ;
         webpage += "</p>";
         }
     else
         {
-        values = read_dht11();
+        values = read_dht_sensor();
         webpage += "<p>Got measurements </p>";
         webpage += "<p><a href=\"/TH/off\"><button class=\"button button2\">GOT</button></a></p>";
         // Print temperature and humidity values here

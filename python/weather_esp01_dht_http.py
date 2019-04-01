@@ -1,9 +1,9 @@
 #!/usr/bin/ python3
 #
-#*** weather-esp01-dht11-http.py  Usage: python3 weather-esp01-dht11-http.py ***
+#*** weather-esp01-dht-http.py  Usage: python3 weather-esp01-dht-http.py ***
 #
 #               Technology demo using http. ESP-01 as web-server.
-#               This script reads temperature and humidity from DHT-11 sensor
+#               This script reads temperature and humidity from DHT-11 or DHT-22 sensor
 #               connected to ESP-01 and updates valid values to google sheet.
 #
 #*******************************************************************************
@@ -12,9 +12,14 @@
 #TODO:      * Add failsafe incase server not available
 #TODO:      * Add retry / failsafe incase server and/or sheet gets unavailable
 #TODO:      * Should write to selected/named sheet on spreadsheet, not to spreadsheet which is first sheet.
-#TODO:      * Add dht22 support
+#TODO:      * For version 1.0, change spreadsheet name and sync things with ESP01_weather_DHT.ino (version 1.0)
 
 """--------- Version history ---------------------------------------------------
+
+    v1.0        yasperzee   3'19    Name changed, support for DHT-22
+                                    Get node and sensor info
+                                    -> minimal combatible nodemcu (.ino) version is: 1.0
+
     v0.3        yasperzee   3'19    Cleaning for release
 
     v0.2        yasperzee   3'19    update
@@ -49,30 +54,35 @@ import time
 # Install Googleapiclient for python3 with pip3
 from googleapiclient.discovery import build
 # Install google-assistant-sdk for python3 with pip3
+# Install google-auth-oauthlib for python3 with pip3
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from urllib.request import urlopen
 
 # Get page with Temperature & Humidity values
-request_url     = 'http://192.168.10.39/TH/on' # home
-
+request_values_url     = 'http://192.168.10.39/TH/on' # home
+# Get page with information about node and sensor
+request_info_url     = 'http://192.168.10.39/TH/off' # home
 # If modifying these scopes, delete the file token.pickle.
-#SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
+# Used to generate sheet name to append data to
 SENSOR = "DHT11"
+#SENSOR = "DHT22"
+NODE = "ESP-01"
+#NODE = "NodeMcu"
 
 # spreadsheet's name is WeatherHerwood
 # The ID and range of a spreadsheet.
 SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'
-#SHEET_NAME      = 'DHT11_01!'
 SHEET_NAME      = SENSOR + '_01!'
+#SHEET_NAME      = NODE + "_" + SENSOR
 MIN_ROW = 3
 MAX_ROW = 96 + MIN_ROW # 15min update interval => 96 records / day
 DATA_RANGE      = 'A'+str(MIN_ROW)+':'+'D'+str(MAX_ROW)
 RANGE_NAME = SHEET_NAME + DATA_RANGE
 RETRY_INTERVAL  = 3*60      # 3*60 => 3min retry if sensor reading(s) == ERROR_VALUE
-UPDATE_INTERVAL = 15*60     # 15*60 => 15min -> 96 records / 24h
+UPDATE_INTERVAL = 15*1     # 15*60 => 15min -> 96 records / 24h
 ERROR_VALUE     = -999.9
 
 # global variables
@@ -84,9 +94,12 @@ once = False;
 # The SPACE after ':' is MANDATORY!
 tagTemp         = 'Temperature: '
 tagHumid        = 'Humidity   : '
+tagInfo         = 'Node:'
+#tagInfo         = 'Info: '
 
 #*******************************************************************************
-class SensorValuesDHT11:
+#class SensorValuesDHT11:
+class SensorDHT:
     # Constructor
     def __init__(self):
         # MAX value lenght is xxxx.xx (Barometer)
@@ -94,14 +107,31 @@ class SensorValuesDHT11:
         # Parsed sensor values (float)
         self.temperatureVal  = 0
         self.humidityVal     = 0
+        self.info     = "Empty"
 
     # Destructor
     def __del__(self):
        class_name = self.__class__.__name__
 
+    def readInfo(self):
+        # Get webpage with information about node and sensor
+        with urlopen(request_info_url) as response:
+            htmlPage = response.read()
+            encoding = response.headers.get_content_charset('utf-8')
+            stringPage = htmlPage.decode(encoding)
+            # Print Decoded page
+            #print(stringPage)
+            #print('')
+
+        # Information string
+        tagIndex = stringPage.find(tagInfo)
+        infoIndex = stringPage.find("</p></body></html>")
+        infoStr = (stringPage[tagIndex:infoIndex])
+        self.info = infoStr
+
     def readSensors(self):
         # Get webpage with sensor values
-        with urlopen(request_url) as response:
+        with urlopen(request_values_url) as response:
             htmlPage = response.read()
             encoding = response.headers.get_content_charset('utf-8')
             stringPage = htmlPage.decode(encoding)
@@ -139,6 +169,9 @@ class SensorValuesDHT11:
     def getHumid(self):
         return self.humidityVal
 
+    def getInfo(self):
+        return self.info
+
 #*******************************************************************************
 class Gredentials:
 # The file token.pickle stores the user's access and refresh tokens, and is
@@ -170,11 +203,12 @@ class Gredentials:
         return self.token
 
 #*******************************************************************************
-class ValuesToSheet:
+class WriteToSheet:
     # Constructor
     def __init__(self, temp, humid):
         self.temp = temp
         self.humid = humid
+        self.info = ""
     # Destructor
     def __del__(self):
         class_name = self.__class__.__name__
@@ -190,14 +224,34 @@ class ValuesToSheet:
         spreadsheet = service.spreadsheets() # Returns the spreadsheets Resource.
         if spreadsheet == 0:
             print('service FAIL!')
-        with urlopen(request_url) as response:
+        with urlopen(request_values_url) as response:
             htmlPage = response.read()
             encoding = response.headers.get_content_charset('utf-8')
             stringPage = htmlPage.decode(encoding)
 
-    def writeSheet(self, creds):
+    def writeInfoToSheet(self, creds, info):
         self.creds = creds
-        #print('Entering writeSheet')
+        self.info = info
+        #print('Entering writeValuesToSheet')
+        # Supported APIs w/ versions: https://developers.google.com/api-client-library/python/apis/
+        # https://developers.google.com/sheets/api/
+        service = build('sheets', 'v4', credentials=self.creds)
+        if service == 0:
+            print('build FAIL!')
+        spreadsheet = service.spreadsheets() # Returns the spreadsheets Resource.
+        if spreadsheet == 0:
+            print('service FAIL!')
+
+        # Write info to shell A1
+        request = service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range = ('A1'),
+            valueInputOption='USER_ENTERED',
+            body={'values': [[ self.info ]]}).execute()
+
+    def writeValuesToSheet(self, creds):
+        self.creds = creds
+        #print('Entering writeValuesToSheet')
         # Supported APIs w/ versions: https://developers.google.com/api-client-library/python/apis/
         # https://developers.google.com/sheets/api/
         service = build('sheets', 'v4', credentials=self.creds)
@@ -245,24 +299,38 @@ class ValuesToSheet:
         # add humid to sheet
         return self.humid
 
+    def getInfo():
+        return self.info
+
 #*******************************************************************************
 def main():
     global once
     while 1:
         if once == False:
-            print('istoken')
+            print('Run only once')
             # If token.pickle does not exists, create newone.
             istoken = Gredentials()
             istoken.getToken();
             creds = istoken.creds
             del istoken
-            #global once
+
+            # Read Node and Sensor information
+            ival = SensorDHT()
+            ival.readInfo();
+            info  = ival.getInfo()
+            print("Info: " + info)
+            del ival
+
+            # Write info to sheet
+            updateSheet = WriteToSheet(ERROR_VALUE, ERROR_VALUE)
+            updateSheet.writeInfoToSheet(creds, info);
+            del updateSheet
             once = True
 
         # Read current Temperature & Barometer values
-        sval = SensorValuesDHT11()
+        sval = SensorDHT()
         sval.readSensors();
-        temp = sval.getTemp()
+        temp  = sval.getTemp()
         humid = sval.getHumid()
         del sval
 
@@ -271,12 +339,10 @@ def main():
             print("values invalid, sheet not updated! " + "T:" + str(temp) + ", " + "H:" + str(humid))
             time.sleep(RETRY_INTERVAL)
         else:
-            updateSheet = ValuesToSheet(temp, humid)
-            updateSheet.writeSheet(creds);
+            updateSheet = WriteToSheet(temp, humid)
+            updateSheet.writeValuesToSheet(creds);
             del updateSheet
             print("T: " + str(temp) + ", " + "B: "+str(humid))
             time.sleep(UPDATE_INTERVAL)
-
-
 
 main()
