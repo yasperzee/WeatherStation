@@ -1,6 +1,6 @@
 #!/usr/bin/ python3
 #
-#*** weather-esp01-dht-http.py  Usage: python3 weather-esp01-dht-http.py ***
+#***** weather-esp01-dht-http.py  Usage: python3 weather-esp01-dht-http.py *****
 #
 #               Technology demo using http. ESP-01 as web-server.
 #               This script reads temperature and humidity from DHT-11 or DHT-22 sensor
@@ -12,13 +12,11 @@
 #TODO:      * Add failsafe incase server not available
 #TODO:      * Add retry / failsafe incase server and/or sheet gets unavailable
 #TODO:      * Should write to selected/named sheet on spreadsheet, not to spreadsheet which is first sheet.
-#TODO:      * For version 1.0, change spreadsheet name and sync things with ESP01_weather_DHT.ino (version 1.0)
 
 """--------- Version history ---------------------------------------------------
 
-    v1.0        yasperzee   3'19    Name changed, support for DHT-22
-                                    Get node and sensor info
-                                    -> minimal combatible nodemcu (.ino) version is: 1.0
+    v1.0        yasperzee   4'19  Release 2: In synch with weather_esp01_dht_http.ino (version 1.0)
+                    Name changed, support for DHT-22 Get node and sensor info
 
     v0.3        yasperzee   3'19    Cleaning for release
 
@@ -60,30 +58,29 @@ from google.auth.transport.requests import Request
 from urllib.request import urlopen
 
 # Get page with Temperature & Humidity values
-request_values_url     = 'http://192.168.10.39/TH/on' # home
+request_values_url  = 'http://192.168.10.39/TH/on'
 # Get page with information about node and sensor
-request_info_url     = 'http://192.168.10.39/TH/off' # home
+request_info_url    = 'http://192.168.10.39/TH/off'
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-# Used to generate sheet name to append data to
+# Select sensor and node
 SENSOR = "DHT11"
 #SENSOR = "DHT22"
 NODE = "ESP-01"
-#NODE = "NodeMcu"
 
 # spreadsheet's name is WeatherHerwood
 # The ID and range of a spreadsheet.
 SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'
-SHEET_NAME      = SENSOR + '_01!'
-#SHEET_NAME      = NODE + "_" + SENSOR
 MIN_ROW = 3
 MAX_ROW = 96 + MIN_ROW # 15min update interval => 96 records / day
-DATA_RANGE      = 'A'+str(MIN_ROW)+':'+'D'+str(MAX_ROW)
-RANGE_NAME = SHEET_NAME + DATA_RANGE
-RETRY_INTERVAL  = 3*60      # 3*60 => 3min retry if sensor reading(s) == ERROR_VALUE
-UPDATE_INTERVAL = 15*1     # 15*60 => 15min -> 96 records / 24h
+RETRY_INTERVAL  = 5      # 3*60 => 3min retry if sensor reading(s) == ERROR_VALUE
+UPDATE_INTERVAL = 10    # 15*60 => 15min -> 96 records / 24h
 ERROR_VALUE     = -999.9
+#SHEET_NAME      = SENSOR + '_01!'
+#SHEET_NAME      = NODE + "_" + SENSOR
+#DATA_RANGE      = 'A'+str(MIN_ROW)+':'+'D'+str(MAX_ROW)
+#RANGE_NAME = SHEET_NAME + DATA_RANGE
 
 # global variables
 once = False;
@@ -93,9 +90,8 @@ once = False;
 # so must match literally with tags in nodemcu weatherserver response!!!
 # The SPACE after ':' is MANDATORY!
 tagTemp         = 'Temperature: '
-tagHumid        = 'Humidity   : '
-tagInfo         = 'Node:'
-#tagInfo         = 'Info: '
+tagHumid        = 'Humidity: '
+tagInfo         = 'Info: '
 
 #*******************************************************************************
 #class SensorValuesDHT11:
@@ -107,7 +103,7 @@ class SensorDHT:
         # Parsed sensor values (float)
         self.temperatureVal  = 0
         self.humidityVal     = 0
-        self.info     = "Empty"
+        self.info     = ""
 
     # Destructor
     def __del__(self):
@@ -123,7 +119,7 @@ class SensorDHT:
             #print(stringPage)
             #print('')
 
-        # Information string
+        # Information
         tagIndex = stringPage.find(tagInfo)
         infoIndex = stringPage.find("</p></body></html>")
         infoStr = (stringPage[tagIndex:infoIndex])
@@ -307,13 +303,12 @@ def main():
     global once
     while 1:
         if once == False:
-            print('Run only once')
+            #print('Run only once')
             # If token.pickle does not exists, create newone.
             istoken = Gredentials()
             istoken.getToken();
             creds = istoken.creds
             del istoken
-
             # Read Node and Sensor information
             ival = SensorDHT()
             ival.readInfo();

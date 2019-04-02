@@ -1,4 +1,4 @@
-/***************************** ESP01_weather_DHT.ino ***********************
+/**************************** weather_esp01_dht_http.ino ***********************
 
   Description:  Read temperature & humidity from DHT11 & DHT22 sensor, ESP-01 acts as
                 webserver, builds webpage with temperature and humidity values.
@@ -21,9 +21,13 @@
 
 /*------------------------------------------------------------------------------
 
+    Version 1.0     4'19    Yasperzee
+                    Release 2: In synch with weather_esp01_dht_http.py (version 1.0)
+
     Version 0.4     4'19    Yasperzee
                     File name changed, DHT22 support added.
-                    Some information about node and sensor added to webpage
+                    Some information about node and s> minimal combatible nodemcu (.ino) version is: 1.0
+ensor added to webpage
 
     Version 0.3     3'19    Yasperzee
                     Cleaning for release
@@ -56,10 +60,10 @@
 String SENSOR  =  "DHT-11";
 //String SENSOR  =  "DHT-22";
 String NODEMCU  =  "ESP-01";
-//String NODEMCU  =  "NodeMcu";
 
 #define RETRY_WIFI_TIME     500 //ms
-// constants
+// constants> minimal combatible nodemcu (.ino) version is: 1.0
+
 
 const float ErrorValue = -999.9;
 // variables
@@ -218,9 +222,9 @@ String build_html(void)
         {
         webpage += "<p>Get measurements </p>";
         webpage += "<p><a href=\"/TH/on\"><button class=\"button\">GET</button></a></p>";
-        webpage += "<p> Node: ";
+        webpage += "<p> Info: ";
         webpage +=  NODEMCU;
-        webpage += "   Sensor: ";
+        webpage += " / ";
         webpage +=  SENSOR ;
         webpage += "</p>";
         }
@@ -234,7 +238,7 @@ String build_html(void)
         webpage += (values.temperature);
         webpage += " °C";
         webpage += "<br/>";
-        webpage += "Humidity   : ";
+        webpage += "Humidity: ";
         webpage += (values.humidity);
         webpage += " %";
         webpage += "<p>";
