@@ -1,10 +1,10 @@
 #!/usr/bin/ python3
 #
-#***** weather-esp01-dht-http.py  Usage: python3 weather-esp01-dht-http.py *****
+#***** weather_esp01_dht_http.py  Usage: python3 weather_esp01_dht_http.py *****
 #
-#               Technology demo using http. ESP-01 as web-server.
-#               This script reads temperature and humidity from DHT-11 or DHT-22 sensor
-#               connected to ESP-01 and updates valid values to google sheet.
+#       Technology demo using http. ESP-01 as web-server.
+#       This script reads temperature and humidity from DHT-11 or DHT-22 sensor
+#       connected to ESP-01 and updates valid values to google sheet.
 #
 #*******************************************************************************
 
@@ -15,33 +15,42 @@
 
 """--------- Version history ---------------------------------------------------
 
-    v1.0        yasperzee   4'19  Release 2: In synch with weather_esp01_dht_http.ino (version 1.0)
-                    Name changed, support for DHT-22 Get node and sensor info
+    v1.0    yasperzee   4'19  Release 2: In synch with weather_esp01_dht_http.ino (version 1.0)
+            Is NOT! compatible with 'weather_esp01_dht_http.ino version<1.0'
+                Filename changed.
+                Get node and sensor info.
+                Some support for DHT-22 - Not really relavant here...
 
-    v0.3        yasperzee   3'19    Cleaning for release
+    v0.3    yasperzee   3'19    Cleaning for release
 
-    v0.2        yasperzee   3'19    update
-                    * Manipulate sheet so that NEW value is written to top row
-                      --> Show on meters latest measured temperature & humidity
-                          move rows down by one, delete row MAX_ROW+1, write values to top row
-                    * if sensorValue == ERROR_VALUE, do NOT send ERROR_VALUE to sheet
+    v0.2    yasperzee   3'19    update
+                * Manipulate sheet so that NEW value is written to top row
+                    --> Show on meters latest measured temperature & humidity
+                        move rows down by one, delete row MAX_ROW+1, write values to top row
+                * if sensorValue == ERROR_VALUE, do NOT send ERROR_VALUE to sheet
 
-    v0.1        yasperzee   3'19    modified for dht11 sensor
+    v0.1    yasperzee   3'19
+                Modified for dht11 sensor
 
-    v0.5        yasperzee   2'19    Some robustnest added to handle sensor values
-                                    Add new values to next empty row.
-                                    Added table and some visualization to sheet
+    v0.5    yasperzee   2'19
+                Some robustnest added to handle sensor values
+                Add new values to next empty row.
+                Added table and some visualization to sheet
 
-    v0.4        yasperzee   2'19    Update sheets with values
-                                    Add current date and time to sheet with values
+    v0.4    yasperzee   2'19
+                Update sheets with values
+                Add current date and time to sheet with values
 
-    v0.3        yasperzee   2'19    Initial suppport for send values to sheeet
-                                    Connects to googlesheets and read some values
+    v0.3    yasperzee   2'19
+                Initial suppport for send values to sheeet
+                Connects to googlesheets and read some values
 
-    v0.2        yasperzee   2'19    Support for nodemcu_weather v0.3, update tagPres accordingly
+    v0.2    yasperzee   2'19
+                Support for nodemcu_weather v0.3, update tagPres accordingly
 
-    v0.1        yasperzee   2'19    Read webpage with sensor values
-                                    combatible with nodemcu_weather v0.2
+    v0.1    yasperzee   2'19
+                Read webpage with sensor values
+                combatible with nodemcu_weather v0.2
 
 -----------------------------------------------------------------------------"""
 from __future__ import print_function
@@ -57,26 +66,36 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from urllib.request import urlopen
 
+################################ CONFIGURATIONS #################################
+                                                                                #
+#server_url  = 'http://192.168.10.39/'  # Node DHT_01 (with DHT11)              #
+server_url  = 'http://192.168.10.57/'  # Node DHT_02 (with DHT22)               #
+                                                                                #
+# If modifying these scopes, delete the file token.pickle.                      #
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']                       #
+                                                                                #
+# spreadsheet's name is WeatherHerwood                                          #
+# The ID and range of a spreadsheet.                                            #
+SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'                #
+                                                                                #
+RETRY_INTERVAL = 3*60   # 3min retry if sensor reading(s) == ERROR_VALUE        #
+UPDATE_INTERVAL= 15*60  # 15min -> 96 records / 24h                             #          #
+                                                                                #
+#################################################################################
+
 # Get page with Temperature & Humidity values
-request_values_url  = 'http://192.168.10.39/TH/on'
+request_values_url  = server_url + 'TH/on'
 # Get page with information about node and sensor
-request_info_url    = 'http://192.168.10.39/TH/off'
-# If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-
-# Select sensor and node
-SENSOR = "DHT11"
-#SENSOR = "DHT22"
-NODE = "ESP-01"
-
-# spreadsheet's name is WeatherHerwood
-# The ID and range of a spreadsheet.
-SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'
+request_info_url  = server_url + 'TH/off'
 MIN_ROW = 3
 MAX_ROW = 96 + MIN_ROW # 15min update interval => 96 records / day
-RETRY_INTERVAL  = 5      # 3*60 => 3min retry if sensor reading(s) == ERROR_VALUE
-UPDATE_INTERVAL = 10    # 15*60 => 15min -> 96 records / 24h
 ERROR_VALUE     = -999.9
+
+# Select sensor and node
+#SENSOR = "DHT11"
+#SENSOR = "DHT22"
+#NODE = "ESP-01"
+
 #SHEET_NAME      = SENSOR + '_01!'
 #SHEET_NAME      = NODE + "_" + SENSOR
 #DATA_RANGE      = 'A'+str(MIN_ROW)+':'+'D'+str(MAX_ROW)
@@ -94,18 +113,16 @@ tagHumid        = 'Humidity: '
 tagInfo         = 'Info: '
 
 #*******************************************************************************
-#class SensorValuesDHT11:
 class SensorDHT:
-    # Constructor
+
     def __init__(self):
         # MAX value lenght is xxxx.xx (Barometer)
         self.valLen = 8
-        # Parsed sensor values (float)
-        self.temperatureVal  = 0
-        self.humidityVal     = 0
-        self.info     = ""
+        # Parsed sensor values (float) & info (string)
+        self.temperatureVal = 0
+        self.humidityVal    = 0
+        self.info           = ""
 
-    # Destructor
     def __del__(self):
        class_name = self.__class__.__name__
 
@@ -173,11 +190,9 @@ class Gredentials:
 # The file token.pickle stores the user's access and refresh tokens, and is
 # created automatically when the authorization flow completes for the first time.
 
-    # Constructor
     def __init__(self):
         self.creds = None
 
-    # Destructor
     def __del__(self):
        class_name = self.__class__.__name__
 
@@ -200,12 +215,12 @@ class Gredentials:
 
 #*******************************************************************************
 class WriteToSheet:
-    # Constructor
+
     def __init__(self, temp, humid):
         self.temp = temp
         self.humid = humid
         self.info = ""
-    # Destructor
+
     def __del__(self):
         class_name = self.__class__.__name__
 
@@ -309,6 +324,7 @@ def main():
             istoken.getToken();
             creds = istoken.creds
             del istoken
+
             # Read Node and Sensor information
             ival = SensorDHT()
             ival.readInfo();

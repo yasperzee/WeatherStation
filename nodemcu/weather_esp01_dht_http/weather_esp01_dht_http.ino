@@ -1,7 +1,9 @@
 /**************************** weather_esp01_dht_http.ino ***********************
 
-  Description:  Read temperature & humidity from DHT11 & DHT22 sensor, ESP-01 acts as
-                webserver, builds webpage with temperature and humidity values.
+  Description:  Read temperature & humidity from DHT11 & DHT22 sensor.
+                ESP-01 acts as webserver.
+                Builds webpage with temperature and humidity values.
+                Builds webpage with some information about NodeMCU and Sensor.
 
   Components:   - ESP-01 esp8266 NodeMcu
                 - DHT11 or DHT22 temperature and humidity sensor
@@ -23,11 +25,11 @@
 
     Version 1.0     4'19    Yasperzee
                     Release 2: In synch with weather_esp01_dht_http.py (version 1.0)
+                    Is NOT! comatible with 'weather_esp01_dht_http.py version<1.0'
 
     Version 0.4     4'19    Yasperzee
                     File name changed, DHT22 support added.
-                    Some information about node and s> minimal combatible nodemcu (.ino) version is: 1.0
-ensor added to webpage
+                    Some information about node and sensor added to webpage
 
     Version 0.3     3'19    Yasperzee
                     Cleaning for release
@@ -53,18 +55,17 @@ ensor added to webpage
 //#define DHT_PIN 	2 // ESP-01 gpio 2
 
 // Select DHT sensor in use,<s values from DHT.h
-#define DHT_TYPE 	DHT11
-//#define DHT_TYPE 	DHT22
+//#define DHT_TYPE 	DHT11
+#define DHT_TYPE 	DHT22
 
 //Select strings for Sensor and Node, used for information and debug
-String SENSOR  =  "DHT-11";
-//String SENSOR  =  "DHT-22";
+//String SENSOR  =  "DHT-11";
+String SENSOR   =  "DHT-22";
 String NODEMCU  =  "ESP-01";
 
 #define RETRY_WIFI_TIME     500 //ms
-// constants> minimal combatible nodemcu (.ino) version is: 1.0
 
-
+// constants
 const float ErrorValue = -999.9;
 // variables
 String getValuesState   = "off";
