@@ -11,7 +11,6 @@
 #TODO:      * Add failreading count to sheet when ERROR_VALUE read
 #TODO:      * Add failsafe incase server not available
 #TODO:      * Add retry / failsafe incase server and/or sheet gets unavailable
-#TODO:      * Should write to selected/named sheet on spreadsheet, not to spreadsheet which is first sheet.
 
 """--------- Version history ---------------------------------------------------
 
@@ -19,7 +18,8 @@
             Is NOT! compatible with 'weather_esp01_dht_http.ino version<1.0'
                 Filename changed.
                 Get node and sensor info.
-                Some support for DHT-22 - Not really relavant here...
+                Some support for DHT-22.
+                Writes to selected/named sheet on spreadsheet, not to spreadsheet which is first sheet.
 
     v0.3    yasperzee   3'19    Cleaning for release
 
@@ -53,6 +53,7 @@
                 combatible with nodemcu_weather v0.2
 
 -----------------------------------------------------------------------------"""
+# Imports
 from __future__ import print_function
 import datetime
 import pickle
@@ -68,49 +69,45 @@ from urllib.request import urlopen
 
 ################################ CONFIGURATIONS #################################
                                                                                 #
-#server_url  = 'http://192.168.10.39/'  # Node DHT_01 (with DHT11)              #
-server_url  = 'http://192.168.10.57/'  # Node DHT_02 (with DHT22)               #
+server_url  = 'http://192.168.10.39/'   # Node DHT-01 (with DHT11)              #
+#server_url  = 'http://192.168.10.57/'  # Node DHT-02 (with DHT22)              #
+                                                                                #
+# The ID and range of a spreadsheet.                                            #
+SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'                #
                                                                                 #
 # If modifying these scopes, delete the file token.pickle.                      #
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']                       #
                                                                                 #
-# spreadsheet's name is WeatherHerwood                                          #
-# The ID and range of a spreadsheet.                                            #
-SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'                #
+RETRY_INTERVAL = 3*60 # 3*60 = 3min retry if sensor reading(s) == ERROR_VALUE   #
+UPDATE_INTERVAL= 15*1 # 15*60 = 15min -> 96 records / 24h                      #
                                                                                 #
-RETRY_INTERVAL = 3*60   # 3min retry if sensor reading(s) == ERROR_VALUE        #
-UPDATE_INTERVAL= 15*60  # 15min -> 96 records / 24h                             #          #
+SHEET_NAME      = 'DHT-01'                                                      #                                                  #
+#SHEET_NAME      = 'DHT-02'                                                     #
+                                                                                #
+# Select sensor and node                                                        #
+#SENSOR = "DHT11"                                                               #
+#SENSOR = "DHT22"                                                               #
+#NODE = "ESP-01"                                                                #
                                                                                 #
 #################################################################################
+
+# Defines
+MIN_ROW     = 3
+MAX_ROW     = 96 + MIN_ROW # 15min update interval => 96 records / day
+ERROR_VALUE = -999.9
+# Tags to find values on received html page
+tagTemp         = 'Temperature: '
+tagHumid        = 'Humidity: '
+tagInfo         = 'Info: '
+
+# Global variables
+once = False;
 
 # Get page with Temperature & Humidity values
 request_values_url  = server_url + 'TH/on'
 # Get page with information about node and sensor
 request_info_url  = server_url + 'TH/off'
-MIN_ROW = 3
-MAX_ROW = 96 + MIN_ROW # 15min update interval => 96 records / day
-ERROR_VALUE     = -999.9
-
-# Select sensor and node
-#SENSOR = "DHT11"
-#SENSOR = "DHT22"
-#NODE = "ESP-01"
-
-#SHEET_NAME      = SENSOR + '_01!'
-#SHEET_NAME      = NODE + "_" + SENSOR
-#DATA_RANGE      = 'A'+str(MIN_ROW)+':'+'D'+str(MAX_ROW)
-#RANGE_NAME = SHEET_NAME + DATA_RANGE
-
-# global variables
-once = False;
-
-# Tags to find values on received html page
-# !!!! Must be updated ONLY together with nodemcu_weather software,
-# so must match literally with tags in nodemcu weatherserver response!!!
-# The SPACE after ':' is MANDATORY!
-tagTemp         = 'Temperature: '
-tagHumid        = 'Humidity: '
-tagInfo         = 'Info: '
+info_range_name = SHEET_NAME + '!A1'
 
 #*******************************************************************************
 class SensorDHT:
@@ -129,25 +126,25 @@ class SensorDHT:
     def readInfo(self):
         # Get webpage with information about node and sensor
         with urlopen(request_info_url) as response:
-            htmlPage = response.read()
-            encoding = response.headers.get_content_charset('utf-8')
-            stringPage = htmlPage.decode(encoding)
+            htmlPage    = response.read()
+            encoding    = response.headers.get_content_charset('utf-8')
+            stringPage  = htmlPage.decode(encoding)
             # Print Decoded page
             #print(stringPage)
             #print('')
 
         # Information
-        tagIndex = stringPage.find(tagInfo)
-        infoIndex = stringPage.find("</p></body></html>")
-        infoStr = (stringPage[tagIndex:infoIndex])
-        self.info = infoStr
+        tagIndex    = stringPage.find(tagInfo)
+        infoIndex   = stringPage.find("</p></body></html>")
+        infoStr     = (stringPage[tagIndex:infoIndex])
+        self.info   = infoStr
 
     def readSensors(self):
         # Get webpage with sensor values
         with urlopen(request_values_url) as response:
-            htmlPage = response.read()
-            encoding = response.headers.get_content_charset('utf-8')
-            stringPage = htmlPage.decode(encoding)
+            htmlPage    = response.read()
+            encoding    = response.headers.get_content_charset('utf-8')
+            stringPage  = htmlPage.decode(encoding)
             # Print Decoded page
             #print(stringPage)
             #print('')
@@ -236,16 +233,17 @@ class WriteToSheet:
         if spreadsheet == 0:
             print('service FAIL!')
         with urlopen(request_values_url) as response:
-            htmlPage = response.read()
-            encoding = response.headers.get_content_charset('utf-8')
+            htmlPage   = response.read()
+            encoding   = response.headers.get_content_charset('utf-8')
             stringPage = htmlPage.decode(encoding)
 
     def writeInfoToSheet(self, creds, info):
         self.creds = creds
-        self.info = info
+        self.info  = info
         #print('Entering writeValuesToSheet')
         # Supported APIs w/ versions: https://developers.google.com/api-client-library/python/apis/
         # https://developers.google.com/sheets/api/
+        # Build the service object
         service = build('sheets', 'v4', credentials=self.creds)
         if service == 0:
             print('build FAIL!')
@@ -253,24 +251,46 @@ class WriteToSheet:
         if spreadsheet == 0:
             print('service FAIL!')
 
-        # Write info to shell A1
-        request = service.spreadsheets().values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range = ('A1'),
-            valueInputOption='USER_ENTERED',
-            body={'values': [[ self.info ]]}).execute()
+        # Write info to 'info_range_name'
+        request =   service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range = info_range_name,
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[ self.info ]]})
+        request.execute()
 
     def writeValuesToSheet(self, creds):
         self.creds = creds
         #print('Entering writeValuesToSheet')
         # Supported APIs w/ versions: https://developers.google.com/api-client-library/python/apis/
         # https://developers.google.com/sheets/api/
+        # Build the service object
         service = build('sheets', 'v4', credentials=self.creds)
         if service == 0:
             print('build FAIL!')
+
         spreadsheet = service.spreadsheets() # Returns the spreadsheets Resource.
         if spreadsheet == 0:
             print('service FAIL!')
+
+        # Read data-area, result type is "Value Range"
+        results =   spreadsheet.values().get(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'D' + str(MAX_ROW))).execute()
+
+        data_to_paste = results.get('values', [])
+        # Write data-area back to position MIN_ROW+1
+        request = service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range = (SHEET_NAME + '!A'+ str(MIN_ROW+1)),
+            valueInputOption='USER_ENTERED',
+            body={'values': data_to_paste}).execute()
+
+        # Clear row MAX_ROW+1
+        request =   service.spreadsheets().values().clear(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'D' + str(MAX_ROW+1))).execute()
+
         # get date and time
         d_format = "%d-%b-%Y"
         t_format = "%H:%M"
@@ -278,28 +298,9 @@ class WriteToSheet:
         today = now.strftime(d_format)
         time = now.strftime(t_format)
         print(today + " " + time)
-
-        # Read data-area, result type is "Value Range"
-        results = spreadsheet.values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range = ('A'+ str(MIN_ROW) + ':' + 'D' + str(MAX_ROW))).execute()
-        data_to_paste = results.get('values', [])
-
-        # Write data-area back to position MIN_ROW+1
-        request = service.spreadsheets().values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range = ('A'+ str(MIN_ROW+1)),
-            valueInputOption='USER_ENTERED',
-            body={'values': data_to_paste}).execute()
-
-        # Clear row MAX_ROW+1
-        request = service.spreadsheets().values().clear(
-            spreadsheetId=SPREADSHEET_ID,
-            range = ('A'+ str(MAX_ROW+1) + ':' + 'D' + str(MAX_ROW+1))).execute()
-
         # update date, time and values to the first row in data-area
         result = service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID, range='A'+ str(MIN_ROW), valueInputOption='RAW',
+        spreadsheetId=SPREADSHEET_ID, range= SHEET_NAME + '!A'+ str(MIN_ROW), valueInputOption='RAW',
         body={'values': [[ today, time, self.temp, self.humid ]]}).execute()
 
     def setTemp(temp):
