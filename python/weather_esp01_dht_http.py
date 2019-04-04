@@ -1,6 +1,6 @@
 #!/usr/bin/ python3
 #
-#***** weather_esp01_dht_http.py  Usage: python3 weather_esp01_dht_http.py *****
+    #***** weather_esp01_dht_http.py  Usage: python3 weather_esp01_dht_http.py *****
 #
 #       Technology demo using http. ESP-01 as web-server.
 #       This script reads temperature and humidity from DHT-11 or DHT-22 sensor
@@ -8,14 +8,18 @@
 #
 #*******************************************************************************
 
-#TODO:      * Add failreading count to sheet when ERROR_VALUE read
-#TODO:      * Add failsafe incase server not available
-#TODO:      * Add retry / failsafe incase server and/or sheet gets unavailable
+#TODO:      * Add retry / failsafe in case ESP01-server/sheet not available when connecting
+#TODO:      * Add retry / failsafe in case ESP01-server and/or sheet gets unavailable
 
-"""--------- Version history ---------------------------------------------------
+"""------------------------------ Version history ------------------------------
 
-    v1.0    yasperzee   4'19  Release 2: In synch with weather_esp01_dht_http.ino (version 1.0)
-            Is NOT! compatible with 'weather_esp01_dht_http.ino version<1.0'
+    v1.1    yasperzee   4'19    Comparing DHT11 <--> DHT22
+                Write dht01(DHT11) and dht02(DHT22) to the same sheet named DHT-COMP
+                Added failreading count to sheet when ERROR_VALUE read
+                Added _DEBUG_ flag
+
+    v1.0    yasperzee   4'19    Release 2: In synch with weather_esp01_dht_http.ino (version 1.0)
+                Is NOT! compatible with 'weather_esp01_dht_http.ino version < 1.0'
                 Filename changed.
                 Get node and sensor info.
                 Some support for DHT-22.
@@ -67,34 +71,56 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from urllib.request import urlopen
 
-################################ CONFIGURATIONS #################################
-                                                                                #
-server_url  = 'http://192.168.10.39/'   # Node DHT-01 (with DHT11)              #
-#server_url  = 'http://192.168.10.57/'  # Node DHT-02 (with DHT22)              #
-                                                                                #
-# The ID and range of a spreadsheet.                                            #
-SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'                #
-                                                                                #
-# If modifying these scopes, delete the file token.pickle.                      #
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']                       #
-                                                                                #
-RETRY_INTERVAL = 3*60 # 3*60 = 3min retry if sensor reading(s) == ERROR_VALUE   #
-UPDATE_INTERVAL= 15*1 # 15*60 = 15min -> 96 records / 24h                      #
-                                                                                #
-SHEET_NAME      = 'DHT-01'                                                      #                                                  #
-#SHEET_NAME      = 'DHT-02'                                                     #
-                                                                                #
-# Select sensor and node                                                        #
-#SENSOR = "DHT11"                                                               #
-#SENSOR = "DHT22"                                                               #
-#NODE = "ESP-01"                                                                #
-                                                                                #
-#################################################################################
+# # # # # # # # # # # # # # # # CONFIGURATIONS  # # # # # # # # # # # # # # # #
+
+
+_DEBUG_ = True # --> DEBUG
+#_DEBUG_ = False #--> RELEASE
+
+# Select sensor and nodemcu
+#NODEMCU    = "ESP01"
+#SENSOR     = "DHT-11"
+#SENSOR     = "DHT-22"
+#NODENUMBER = "01"
+
+SHEET_NAME      = 'DHT-COMP' # two nodes to same sheet
+
+server_url_dht_01  = 'http://192.168.10.39/'  # Node DHT-01 (with DHT11)
+server_url_dht_02  = 'http://192.168.10.57/'  # Node DHT-02 (with DHT22)
+
+#The ID of a spreadsheet.
+SPREADSHEET_ID  = '1bZ0gfiIlpTnHn-vMSA-m9OzVQEtF1l7ELNo40k0EBcM'
+# If modifying these scopes, delete the file token.pickle.
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+#NODE_ID    = NODEMCU + '_' + SENSOR + '_' + NODENUMBER
+#SHEET_NAME = NODE_ID
+
+# Get page with Temperature & Humidity values
+request_values_url_dht_01  = server_url_dht_01 + 'TH/on'
+request_values_url_dht_02  = server_url_dht_02 + 'TH/on'
+# Get page with information about node and sensor
+request_info_url_dht_01  = server_url_dht_01 + 'TH/off'
+request_info_url_dht_02  = server_url_dht_02 + 'TH/off'
+
+info_range_name_dht11 = SHEET_NAME + '!C1' # DHT11
+info_range_name_dht22 = SHEET_NAME + '!E1' # DHT22
+info_range_name_fail_count = SHEET_NAME + '!A1'
+
+if _DEBUG_ == True:
+    RETRY_INTERVAL = 5*1    # 5*1 = 5 second retry if sensor reading(s) == ERROR_VALUE
+    UPDATE_INTERVAL= 38*1   # 38*1 = 38 second -> 96 records / ~1h
+else: # Release
+    RETRY_INTERVAL = 3*60 # 3*60 = 3min retry if sensor reading(s) == ERROR_VALUE
+    UPDATE_INTERVAL= 15*60 # 15*60 = 15min -> 96 records / 24h
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Defines
 MIN_ROW     = 3
 MAX_ROW     = 96 + MIN_ROW # 15min update interval => 96 records / day
 ERROR_VALUE = -999.9
+
 # Tags to find values on received html page
 tagTemp         = 'Temperature: '
 tagHumid        = 'Humidity: '
@@ -102,15 +128,10 @@ tagInfo         = 'Info: '
 
 # Global variables
 once = False;
-
-# Get page with Temperature & Humidity values
-request_values_url  = server_url + 'TH/on'
-# Get page with information about node and sensor
-request_info_url  = server_url + 'TH/off'
-info_range_name = SHEET_NAME + '!A1'
+failCount = 0;
 
 #*******************************************************************************
-class SensorDHT:
+class SensorDHT11:
 
     def __init__(self):
         # MAX value lenght is xxxx.xx (Barometer)
@@ -125,7 +146,7 @@ class SensorDHT:
 
     def readInfo(self):
         # Get webpage with information about node and sensor
-        with urlopen(request_info_url) as response:
+        with urlopen(request_info_url_dht_01) as response:
             htmlPage    = response.read()
             encoding    = response.headers.get_content_charset('utf-8')
             stringPage  = htmlPage.decode(encoding)
@@ -141,7 +162,79 @@ class SensorDHT:
 
     def readSensors(self):
         # Get webpage with sensor values
-        with urlopen(request_values_url) as response:
+        with urlopen(request_values_url_dht_01) as response:
+            htmlPage    = response.read()
+            encoding    = response.headers.get_content_charset('utf-8')
+            stringPage  = htmlPage.decode(encoding)
+            # Print Decoded page
+            #print(stringPage)
+            #print('')
+
+        # Temperature
+        tagIndex = stringPage.find(tagTemp) + len(tagTemp)
+        valIndex = tagIndex + self.valLen
+        valueStr = (stringPage[tagIndex:valIndex])
+        idx=0
+        for x in valueStr:
+            idx = idx+1
+            if valueStr[idx] == " ":
+                valueStr = valueStr[:idx]
+                break
+        self.temperatureVal = float(valueStr)
+
+        # Humidity
+        tagIndex = stringPage.find(tagHumid) + len(tagHumid)
+        valIndex = tagIndex + self.valLen
+        valueStr = (stringPage[tagIndex:valIndex])
+        idx=0
+        for x in valueStr:
+            idx = idx+1
+            if valueStr[idx] == " ":
+                valueStr = valueStr[:idx]
+                break
+        self.humidityVal= float(valueStr)
+
+    def getTemp(self):
+        return self.temperatureVal
+
+    def getHumid(self):
+        return self.humidityVal
+
+    def getInfo(self):
+        return self.info
+
+class SensorDHT22:
+
+    def __init__(self):
+        # MAX value lenght is xxxx.xx (Barometer)
+        self.valLen = 8
+        # Parsed sensor values (float) & info (string)
+        self.temperatureVal = 0
+        self.humidityVal    = 0
+        self.info           = ""
+
+    def __del__(self):
+       class_name = self.__class__.__name__
+
+    def readInfo(self):
+        # Get webpage with information about node and sensor
+        with urlopen(request_info_url_dht_02) as response:
+            htmlPage    = response.read()
+            encoding    = response.headers.get_content_charset('utf-8')
+            stringPage  = htmlPage.decode(encoding)
+            # Print Decoded page
+            #print(stringPage)
+            #print('')
+
+        # Information
+        tagIndex    = stringPage.find(tagInfo)
+        infoIndex   = stringPage.find("</p></body></html>")
+        infoStr     = (stringPage[tagIndex:infoIndex])
+        self.info   = infoStr
+
+    def readSensors(self):
+        # Get webpage with sensor values
+        with urlopen(request_values_url_dht_02) as response:
             htmlPage    = response.read()
             encoding    = response.headers.get_content_charset('utf-8')
             stringPage  = htmlPage.decode(encoding)
@@ -213,10 +306,14 @@ class Gredentials:
 #*******************************************************************************
 class WriteToSheet:
 
-    def __init__(self, temp, humid):
-        self.temp = temp
-        self.humid = humid
-        self.info = ""
+    def __init__(self, temp1, humid1, temp2, humid2):
+        self.temp1 = temp1
+        self.humid1 = humid1
+        self.temp2 = temp2
+        self.humid2 = humid2
+        self.failCount = 0
+        self.info1 = ""
+        self.info2 = ""
 
     def __del__(self):
         class_name = self.__class__.__name__
@@ -237,9 +334,11 @@ class WriteToSheet:
             encoding   = response.headers.get_content_charset('utf-8')
             stringPage = htmlPage.decode(encoding)
 
-    def writeInfoToSheet(self, creds, info):
+    def writeInfoToSheet(self, creds, info1, info2):
         self.creds = creds
-        self.info  = info
+        self.info1  = info1
+        self.info2  = info2
+        global failCount
         #print('Entering writeValuesToSheet')
         # Supported APIs w/ versions: https://developers.google.com/api-client-library/python/apis/
         # https://developers.google.com/sheets/api/
@@ -251,12 +350,20 @@ class WriteToSheet:
         if spreadsheet == 0:
             print('service FAIL!')
 
-        # Write info to 'info_range_name'
+        # Write info1 to 'info_range_name'
         request =   service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
-                    range = info_range_name,
+                    range = info_range_name_dht11,
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[ self.info ]]})
+                    body={'values': [[ self.info1 ]]})
+        request.execute()
+
+        # Write info2 to 'info_range_name'
+        request =   service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range = info_range_name_dht22,
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[ self.info2 ]]})
         request.execute()
 
     def writeValuesToSheet(self, creds):
@@ -273,10 +380,11 @@ class WriteToSheet:
         if spreadsheet == 0:
             print('service FAIL!')
 
-        # Read data-area, result type is "Value Range"
+        # Read data-area to move, result type is "Value Range"
         results =   spreadsheet.values().get(
                     spreadsheetId=SPREADSHEET_ID,
-                    range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'D' + str(MAX_ROW))).execute()
+                    #range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'D' + str(MAX_ROW))).execute() # DHT11 or DTH22
+                    range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'F' + str(MAX_ROW))).execute() # DHT11 and DHT22
 
         data_to_paste = results.get('values', [])
         # Write data-area back to position MIN_ROW+1
@@ -289,7 +397,8 @@ class WriteToSheet:
         # Clear row MAX_ROW+1
         request =   service.spreadsheets().values().clear(
                     spreadsheetId=SPREADSHEET_ID,
-                    range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'D' + str(MAX_ROW+1))).execute()
+                    #range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'D' + str(MAX_ROW+1))).execute()  # DHT11 or DTH22
+                    range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'F' + str(MAX_ROW+1))).execute()  # DHT11 and DTH22
 
         # get date and time
         d_format = "%d-%b-%Y"
@@ -298,10 +407,22 @@ class WriteToSheet:
         today = now.strftime(d_format)
         time = now.strftime(t_format)
         print(today + " " + time)
+
         # update date, time and values to the first row in data-area
         result = service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID, range= SHEET_NAME + '!A'+ str(MIN_ROW), valueInputOption='RAW',
-        body={'values': [[ today, time, self.temp, self.humid ]]}).execute()
+                        spreadsheetId = SPREADSHEET_ID,
+                        range= SHEET_NAME + '!A'+ str(MIN_ROW),
+                        valueInputOption='RAW',
+                        #body={'values': [[ today, time, self.temp, self.humid ]]}).execute()
+                        body={'values': [[ today, time, self.temp1, self.humid1, self.temp2, self.humid2 ]]}).execute()
+
+        # Write failCount to sheet
+        request =   service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range = info_range_name_fail_count,
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[ failCount ]]})
+        request.execute()
 
     def setTemp(temp):
         # add temp to sheet
@@ -311,12 +432,16 @@ class WriteToSheet:
         # add humid to sheet
         return self.humid
 
+    def setFailCount(failCount):
+        self.failCount = failCount
+
     def getInfo():
         return self.info
 
 #*******************************************************************************
 def main():
     global once
+    global failCount
     while 1:
         if once == False:
             #print('Run only once')
@@ -326,35 +451,53 @@ def main():
             creds = istoken.creds
             del istoken
 
-            # Read Node and Sensor information
-            ival = SensorDHT()
+            # Read Node1 and Sensor information
+            ival = SensorDHT11()
             ival.readInfo();
-            info  = ival.getInfo()
-            print("Info: " + info)
+            info1  = ival.getInfo()
+            print("Info1: " + info1)
+            del ival
+
+            # Read Node2 and Sensor information
+            ival = SensorDHT22()
+            ival.readInfo();
+            info2  = ival.getInfo()
+            print("Info2: " + info2)
             del ival
 
             # Write info to sheet
-            updateSheet = WriteToSheet(ERROR_VALUE, ERROR_VALUE)
-            updateSheet.writeInfoToSheet(creds, info);
+            updateSheet = WriteToSheet(ERROR_VALUE, ERROR_VALUE, ERROR_VALUE, ERROR_VALUE)
+            updateSheet.writeInfoToSheet(creds, info1, info2);
             del updateSheet
             once = True
 
         # Read current Temperature & Barometer values
-        sval = SensorDHT()
-        sval.readSensors();
-        temp  = sval.getTemp()
-        humid = sval.getHumid()
-        del sval
+        sval1 = SensorDHT11()
+        sval1.readSensors();
+        temp_dht11  = sval1.getTemp()
+        humid_dht11 = sval1.getHumid()
+        del sval1
+
+        sval2 = SensorDHT22()
+        sval2.readSensors();
+        temp_dht22  = sval2.getTemp()
+        humid_dht22 = sval2.getHumid()
+        del sval2
 
         # Append values to spreadsheet only if values are valid.
-        if ( temp == ERROR_VALUE or humid == ERROR_VALUE ):
-            print("values invalid, sheet not updated! " + "T:" + str(temp) + ", " + "H:" + str(humid))
+        if ( temp_dht11 == ERROR_VALUE or humid_dht11 == ERROR_VALUE or temp_dht22 == ERROR_VALUE or humid_dht22 == ERROR_VALUE ):
+            failCount = failCount+1
+            print("values invalid, sheet not updated! failCount: " + str(failCount) )
+            #print("values invalid, sheet not updated! " + "T dht11: " + str(temp_dht11) + ", " + "H dht11: " + str(humid_dht11))
+            #print("values invalid, sheet not updated! " + "T dht22: " + str(temp_dht22) + ", " + "H dht22: " + str(humid_dht22))
             time.sleep(RETRY_INTERVAL)
         else:
-            updateSheet = WriteToSheet(temp, humid)
+            updateSheet = WriteToSheet(temp_dht11, humid_dht11, temp_dht22, humid_dht22)
             updateSheet.writeValuesToSheet(creds);
             del updateSheet
-            print("T: " + str(temp) + ", " + "B: "+str(humid))
+
+            print("T dht11: " + str(temp_dht11) + ", " + "H dht11: " + str(humid_dht11))
+            print("T dht22: " + str(temp_dht22) + ", " + "H dht22: " + str(humid_dht22))
             time.sleep(UPDATE_INTERVAL)
 
 main()
