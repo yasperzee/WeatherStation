@@ -25,7 +25,7 @@
 
     Version 1.0     4'19    Yasperzee
                     Release 2: In synch with weather_esp01_dht_http.py (version 1.0)
-                    Is NOT! comatible with 'weather_esp01_dht_http.py version<1.0'
+                    Is NOT! combatible with 'weather_esp01_dht_http.py version < 1.0'
 
     Version 0.4     4'19    Yasperzee
                     File name changed, DHT22 support added.
@@ -48,13 +48,8 @@
 #include "ESP8266WiFi.h"
 #include "DHT.h"
 
-// defines
-#define PORT        80
-#define BAUDRATE    115200
-#define DHT_PIN 	0 // ESP-01 gpio 0
-//#define DHT_PIN 	2 // ESP-01 gpio 2
-
-// Select DHT sensor in use,<s values from DHT.h
+//****** Configurations ********************************************************
+// Select DHT sensor in use
 //#define DHT_TYPE 	DHT11
 #define DHT_TYPE 	DHT22
 
@@ -62,6 +57,13 @@
 //String SENSOR  =  "DHT-11";
 String SENSOR   =  "DHT-22";
 String NODEMCU  =  "ESP-01";
+// *****************************************************************************
+
+// defines
+#define PORT        80
+#define BAUDRATE    115200
+#define DHT_PIN 	0 // ESP-01 gpio 0
+//#define DHT_PIN 	2 // ESP-01 gpio 2
 
 #define RETRY_WIFI_TIME     500 //ms
 
