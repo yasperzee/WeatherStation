@@ -1,4 +1,11 @@
-#*******************************************************************************
+#!/usr/bin/ python3
+
+#TODO:  remove "readInfo" -method, add functionality to "readSensors" -method
+"""------------------------------ Version history ------------------------------
+
+    v0.1    yasperzee   4'19    Classes moved to separate modules
+            Classes to read sensor data from DHT11 / DHT22 for weather_esp01_dht_http.py
+-----------------------------------------------------------------------------"""
 
 from urllib.request import urlopen
 
@@ -33,6 +40,7 @@ class Sensor_DHT:
         infoIndex   = stringPage.find("</p></body></html>")
         infoStr     = (stringPage[tagIndex:infoIndex])
         self.info   = infoStr
+        print(infoStr)
 
     def readSensors(self):
         # Get webpage with sensor values

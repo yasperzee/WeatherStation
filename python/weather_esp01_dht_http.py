@@ -13,6 +13,8 @@
 
 """------------------------------ Version history ------------------------------
 
+    v1.3   yasperzee   4'19    Read 3 sensors to sheet
+
     v1.2   yasperzee   4'19    Classes to separate modules
 
     v1.1    yasperzee   4'19    Comparing DHT11 <--> DHT22
@@ -82,15 +84,18 @@ else: # Release
     RETRY_INTERVAL = 3*60 # 3*60 = 3min retry if sensor reading(s) == ERROR_VALUE
     UPDATE_INTERVAL= 15*60 # 15*60 = 15min -> 96 records / 24h
 
-class SensorDHT11(Sensor_DHT):
+class SensorDHT11_01(Sensor_DHT):
     pass
 
-class SensorDHT22(Sensor_DHT):
+class SensorDHT11_02(Sensor_DHT):
+    pass
+
+class SensorDHT22_01(Sensor_DHT):
     pass
 
 def main():
     once = False;
-    failCount = 0;
+    #failCount = 0;
 
     while 1:
         if once == False:
@@ -101,53 +106,69 @@ def main():
             creds = istoken.creds
             del istoken
 
-            # Read Node1 and Sensor information
-            ival = SensorDHT11(request_info_url_dht_01)
+            # Read Node1 (DHT11) and Sensor information
+            ival = SensorDHT11_01(request_info_url_dht_01)
             ival.readInfo();
             info1  = ival.getInfo()
-            print("Info1: " + info1)
+            #print("Info1: " + info1)
             del ival
 
-            # Read Node2 and Sensor information
-            ival = SensorDHT22(request_info_url_dht_02)
+            # Read Node2 (DHT11) and Sensor information
+            ival = SensorDHT11_02(request_info_url_dht_02)
             ival.readInfo();
             info2  = ival.getInfo()
-            print("Info2: " + info2)
+            #print("Info2: " + info2)
+            del ival
+
+            # Read Node3 (DHT22) and Sensor information
+            ival = SensorDHT22_01(request_info_url_dht_03)
+            ival.readInfo();
+            info3  = ival.getInfo()
             del ival
 
             # Write info to sheet
-            updateSheet = WriteToSheet(ERROR_VALUE, ERROR_VALUE, ERROR_VALUE, ERROR_VALUE, 0)
-            updateSheet.writeInfoToSheet(creds, info1, info2);
+            updateSheet = WriteToSheet(ERROR_VALUE, ERROR_VALUE, ERROR_VALUE, ERROR_VALUE, ERROR_VALUE, ERROR_VALUE)
+            updateSheet.writeInfoToSheet(creds, info1, info2, info3);
             del updateSheet
             once = True
 
         # Read current Temperature & Barometer values
-        sval1 = SensorDHT11(request_values_url_dht_01)
+        sval1 = SensorDHT11_01(request_values_url_dht_01)
         sval1.readSensors();
-        temp_dht11  = sval1.getTemp()
-        humid_dht11 = sval1.getHumid()
+        temp_dht11_01  = sval1.getTemp()
+        humid_dht11_01 = sval1.getHumid()
         del sval1
 
-        sval2 = SensorDHT22(request_values_url_dht_02)
+        sval2 = SensorDHT11_02(request_values_url_dht_02)
         sval2.readSensors();
-        temp_dht22  = sval2.getTemp()
-        humid_dht22 = sval2.getHumid()
+        temp_dht11_02  = sval2.getTemp()
+        humid_dht11_02 = sval2.getHumid()
         del sval2
 
+        sval3 = SensorDHT22_01(request_values_url_dht_03)
+        sval3.readSensors();
+        temp_dht22_01  = sval3.getTemp()
+        humid_dht22_01 = sval3.getHumid()
+        del sval3
+        """
         # Append values to spreadsheet only if values are valid.
-        if ( temp_dht11 == ERROR_VALUE or humid_dht11 == ERROR_VALUE or temp_dht22 == ERROR_VALUE or humid_dht22 == ERROR_VALUE ):
+        if (    temp_dht11_01 == ERROR_VALUE or humid_dht11_01 == ERROR_VALUE or
+                temp_dht11_02 == ERROR_VALUE or humid_dht11_02 == ERROR_VALUE or
+                temp_dht22_01 == ERROR_VALUE or humid_dht22_01 == ERROR_VALUE ):
             failCount = failCount+1
             print("values invalid, sheet not updated! failCount: " + str(failCount) )
-            #print("values invalid, sheet not updated! " + "T dht11: " + str(temp_dht11) + ", " + "H dht11: " + str(humid_dht11))
-            #print("values invalid, sheet not updated! " + "T dht22: " + str(temp_dht22) + ", " + "H dht22: " + str(humid_dht22))
-            time.sleep(RETRY_INTERVAL)
-        else:
-            updateSheet = WriteToSheet(temp_dht11, humid_dht11, temp_dht22, humid_dht22, failCount)
-            updateSheet.writeValuesToSheet(creds);
-            del updateSheet
-
-            print("T dht11: " + str(temp_dht11) + ", " + "H dht11: " + str(humid_dht11))
-            print("T dht22: " + str(temp_dht22) + ", " + "H dht22: " + str(humid_dht22))
-            time.sleep(UPDATE_INTERVAL)
+            print("values invalid, sheet not updated! " + "T dht11_01: " + str(temp_dht11_01) + ", " + "H dht11_01: " + str(humid_dht11_01))
+            print("values invalid, sheet not updated! " + "T dht11_02: " + str(temp_dht11_02) + ", " + "H dht11_02: " + str(humid_dht11_02))
+            print("values invalid, sheet not updated! " + "T dht22:01: " + str(temp_dht22_01) + ", " + "H dht22_01: " + str(humid_dht22_01))
+            #time.sleep(RETRY_INTERVAL)
+        #else:
+        """
+        updateSheet = WriteToSheet(temp_dht11_01, humid_dht11_01, temp_dht11_02, humid_dht11_02, temp_dht22_01, humid_dht22_01)
+        updateSheet.writeValuesToSheet(creds);
+        del updateSheet
+        print("T dht11_01: " + str(temp_dht11_01) + ", " + "H dht11_01: " + str(humid_dht11_01))
+        print("T dht11_02: " + str(temp_dht11_02) + ", " + "H dht11_02: " + str(humid_dht11_02))
+        print("T dht22_01: " + str(temp_dht22_01) + ", " + "H dht22_01: " + str(humid_dht22_01))
+        time.sleep(UPDATE_INTERVAL)
 
 main()

@@ -12,7 +12,7 @@
 
   IDE & tools:  - Arduino IDE 1.8.8, UBUNTU 18.04 LTS
 
-  Librarys:     - https://github.com/esp8266/Arduino
+  Librarys:     - uhttps://github.com/esp8266/Arduino
                 - https://github.com/adafruit/DHT-sensor-library
                 - https://github.com/adafruit/Adafruit_Sensor
 
@@ -23,6 +23,8 @@
 
 /*------------------------------------------------------------------------------
 
+    Version 1.1b     4'19    Yasperzee   something. . .
+    Version 1.1     4'19    Yasperzee   Add nodemumber to info
     Version 1.0     4'19    Yasperzee
                     Release 2: In synch with weather_esp01_dht_http.py (version 1.0)
                     Is NOT! combatible with 'weather_esp01_dht_http.py version < 1.0'
@@ -45,27 +47,32 @@
 // includes
 #include "ssid.h"  // SSID and PASS strings for local network
 #include <Arduino.h>
+#include <Adafruit_Sensor.h>
 #include "ESP8266WiFi.h"
 #include "DHT.h"
 
 //****** Configurations ********************************************************
-// Select DHT sensor in use
-//#define DHT_TYPE 	DHT11
-#define DHT_TYPE 	DHT22
+//Select string for Node, used for information and debug
+String NODEMCU_STR  =  "ESP-01";
 
-//Select strings for Sensor and Node, used for information and debug
-//String SENSOR  =  "DHT-11";
-String SENSOR   =  "DHT-22";
-String NODEMCU  =  "ESP-01";
+// Increment number for each node
+String NODE_ID_STR  =  "Node-03";
+
+// Select DHT sensor in use, select "SENSOR_STR" also !
+//#define DHT_TYPE    DHT11
+//String SENSOR_STR   =  "DHT-11";
+#define DHT_TYPE 	DHT22
+String SENSOR_STR =  "DHT-22";
+
+//#define DHT_PIN 	0 // ESP-01 gpio 0
+#define DHT_PIN 	2 // ESP-01 gpio 2
+
 // *****************************************************************************
 
 // defines
-#define PORT        80
-#define BAUDRATE    115200
-#define DHT_PIN 	0 // ESP-01 gpio 0
-//#define DHT_PIN 	2 // ESP-01 gpio 2
-
-#define RETRY_WIFI_TIME     500 //ms
+#define PORT            80
+#define BAUDRATE        115200
+#define RETRY_WIFI_TIME 1000 //ms
 
 // constants
 const float ErrorValue = -999.9;
@@ -111,8 +118,8 @@ void setup()
     Serial.println(WiFi.localIP());
     server.begin();
     dht.begin();
-    Serial.println("Node is " + NODEMCU);
-    Serial.println("Sensor is " + SENSOR);
+    Serial.println("Node is " + NODEMCU_STR);
+    Serial.println("Sensor is " + SENSOR_STR);
     } // setup
 
 void loop()
@@ -141,7 +148,7 @@ void loop()
                         // and a content-type so the client knows what's coming, then a blank line:
                         client.println("HTTP/1.1 200 OK");
                         client.println("Content-type:text/html");
-                        client.println("Connection: close");
+                        //client.println("Connection: close");
                         client.println();
 
                         // GET values
@@ -157,7 +164,7 @@ void loop()
                         String tmp = build_html();
                         //Serial.println(tmp);
                         client.println(tmp);
-                        client.println("Connection closed.");
+                        //client.println("Connection closed.");
                         // Break out of the while loop
                         break;
                         } // if (currentLine.length() == 0)
@@ -226,9 +233,12 @@ String build_html(void)
         webpage += "<p>Get measurements </p>";
         webpage += "<p><a href=\"/TH/on\"><button class=\"button\">GET</button></a></p>";
         webpage += "<p> Info: ";
-        webpage +=  NODEMCU;
+        //webpage += "<p>";
+        webpage +=  NODE_ID_STR;
+        webpage += ": ";
+        webpage +=  NODEMCU_STR;
         webpage += " / ";
-        webpage +=  SENSOR ;
+        webpage +=  SENSOR_STR;
         webpage += "</p>";
         }
     else

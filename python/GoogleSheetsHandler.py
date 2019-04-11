@@ -1,3 +1,11 @@
+#!/usr/bin/ python3
+
+"""------------------------------ Version history ------------------------------
+
+    v0.2    yasperzee   4'19    Read 3 sensors to sheet
+    v0.1    yasperzee   4'19    Classes moved to separate modules
+            Classes to write sensor data to sheet for weather_esp01_dht_http.py
+-----------------------------------------------------------------------------"""
 
 import os.path
 import pickle
@@ -14,14 +22,19 @@ from configuration import *
 
 class WriteToSheet:
 
-    def __init__(self, temp1, humid1, temp2, humid2, failCount):
+    #def __init__(self, temp1, humid1, temp2, humid2, failCount):
+    #def __init__(self, temp1, humid1, temp2, humid2, temp3, humid3, failCount):
+    def __init__(self, temp1, humid1, temp2, humid2, temp3, humid3):
         self.temp1 = temp1
         self.humid1 = humid1
         self.temp2 = temp2
         self.humid2 = humid2
-        self.failCount = failCount
+        self.temp3 = temp3
+        self.humid3 = humid3
+        #self.failCount = failCount
         self.info1 = ""
         self.info2 = ""
+        self.info3 = ""
 
     def __del__(self):
         class_name = self.__class__.__name__
@@ -42,11 +55,11 @@ class WriteToSheet:
             encoding   = response.headers.get_content_charset('utf-8')
             stringPage = htmlPage.decode(encoding)
 
-    def writeInfoToSheet(self, creds, info1, info2):
+    def writeInfoToSheet(self, creds, info1, info2, info3):
         self.creds = creds
         self.info1  = info1
         self.info2  = info2
-        #print('Entering writeValuesToSheet')
+        self.info3  = info3
         # Supported APIs w/ versions: https://developers.google.com/api-client-library/python/apis/
         # https://developers.google.com/sheets/api/
         # Build the service object
@@ -60,22 +73,30 @@ class WriteToSheet:
         # Write info1 to 'info_range_name'
         request =   service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
-                    range = info_range_name_dht11,
+                    range = info_range_name_dht11_01,
                     valueInputOption='USER_ENTERED',
                     body={'values': [[ self.info1 ]]})
+        request.execute()
+
+        # Write info1 to 'info_range_name'
+        request =   service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range = info_range_name_dht11_02,
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[ self.info2 ]]})
         request.execute()
 
         # Write info2 to 'info_range_name'
         request =   service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
-                    range = info_range_name_dht22,
+                    range = info_range_name_dht22_01,
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[ self.info2 ]]})
+                    body={'values': [[ self.info3 ]]})
         request.execute()
 
     def writeValuesToSheet(self, creds):
         self.creds = creds
-        #print('Entering writeValuesToSheet')
+
         # Supported APIs w/ versions: https://developers.google.com/api-client-library/python/apis/
         # https://developers.google.com/sheets/api/
         # Build the service object
@@ -91,7 +112,8 @@ class WriteToSheet:
         results =   spreadsheet.values().get(
                     spreadsheetId=SPREADSHEET_ID,
                     #range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'D' + str(MAX_ROW))).execute() # DHT11 or DTH22
-                    range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'F' + str(MAX_ROW))).execute() # DHT11 and DHT22
+                    #range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'F' + str(MAX_ROW))).execute() # DHT11 and DHT22
+                    range = (SHEET_NAME + '!A'+ str(MIN_ROW) + ':' + 'H' + str(MAX_ROW))).execute() # DHT11_01, DHT11_02 and DHT22_01
 
         data_to_paste = results.get('values', [])
         # Write data-area back to position MIN_ROW+1
@@ -105,7 +127,9 @@ class WriteToSheet:
         request =   service.spreadsheets().values().clear(
                     spreadsheetId=SPREADSHEET_ID,
                     #range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'D' + str(MAX_ROW+1))).execute()  # DHT11 or DTH22
-                    range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'F' + str(MAX_ROW+1))).execute()  # DHT11 and DTH22
+                    #range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'F' + str(MAX_ROW+1))).execute()  # DHT11 and DTH22
+                    range = (SHEET_NAME + '!A'+ str(MAX_ROW+1) + ':' + 'H' + str(MAX_ROW+1))).execute() # DHT11_01, DHT11_02 and DHT22_01
+
 
         # get date and time
         d_format = "%d-%b-%Y"
@@ -121,17 +145,19 @@ class WriteToSheet:
                         range= SHEET_NAME + '!A'+ str(MIN_ROW),
                         valueInputOption='RAW',
                         #body={'values': [[ today, time, self.temp, self.humid ]]}).execute()
-                        body={'values': [[ today, time, self.temp1, self.humid1, self.temp2, self.humid2 ]]}).execute()
+                        #body={'values': [[ today, time, self.temp1, self.humid1, self.temp2, self.humid2 ]]}).execute()
+                        body={'values': [[ today, time, self.temp1, self.humid1, self.temp2, self.humid2, self.temp3, self.humid3 ]]}).execute()
 
         # Write failCount to sheet
-        #global failCount
+        """
+        global failCount
         request =   service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
                     range = info_range_name_fail_count,
                     valueInputOption='USER_ENTERED',
                     body={'values': [[ self.failCount ]]})
         request.execute()
-
+        """
     def setTemp(temp):
         # add temp to sheet
         return self.temp
@@ -140,8 +166,8 @@ class WriteToSheet:
         # add humid to sheet
         return self.humid
 
-    def setFailCount(failCount):
-        self.failCount = failCount
+    #def setFailCount(failCount):
+    #    self.failCount = failCount
 
     def getInfo():
         return self.info
