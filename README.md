@@ -5,7 +5,6 @@
   - ESP01: 1,70€
   - DHT11: 0,90€
   - DHT22: 1,70€
-  - Total: 3,30€
     
 ![esp01](https://github.com/yasperzee/Specs/blob/master/pinouts/esp01_pinout.png)
 
